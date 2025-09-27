@@ -21,12 +21,13 @@ long long dfv1(int16_t* samples, int windowSize, int lag)
     long long sum = 0;
     for (int j = 1; j <= windowSize; j++)
     {
-        sum += pow(samples[j] - samples[j + lag], 2);
+        int diff = samples[j] - samples[j + lag];
+        sum += diff * diff;
     }
     return sum;
 }
 
-// Difference function v2 (in terms of ACF, more computationally efficient)
+// Difference function v2 (in terms of ACF)
 long long dfv2(int16_t* samples, int windowSize, int lag)
 {
     return acf(samples, windowSize, 0) + acf(samples + lag, windowSize, 0) - 2 * acf(samples, windowSize, lag);
@@ -65,7 +66,7 @@ int main()
     long long minDF = LLONG_MAX;
     for (int currentLag = minLag; currentLag < maxLag; currentLag++)
     {
-        long long currentDF = dfv2(audioFile.samples[channel].data() + candidate, windowSize, currentLag);
+        long long currentDF = dfv1(audioFile.samples[channel].data() + candidate, windowSize, currentLag);
         if (currentDF < minDF)
         {
             minDF = currentDF;
