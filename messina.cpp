@@ -3,8 +3,19 @@
 #include <climits>
 #include "AudioFile.h"
 
+// Autocorrelation function
+long long acf(int16_t* samples, int windowSize, int lag)
+{
+    long long sum = 0;
+    for (int j = 1; j <= windowSize; j++)
+    {
+        sum += samples[j] * samples[j + lag];
+    }
+    return sum;
+}
 
-long long df(int16_t* samples, int windowSize, int lag)
+// Difference function v1 (intuitive form)
+long long dfv1(int16_t* samples, int windowSize, int lag)
 {
     long long sum = 0;
     for (int j = 1; j <= windowSize; j++)
@@ -12,6 +23,12 @@ long long df(int16_t* samples, int windowSize, int lag)
         sum += pow(samples[j] - samples[j + lag], 2);
     }
     return sum;
+}
+
+// Difference function v2 (in terms of ACF, more computationally efficient)
+long long dfv2(int16_t* samples, int windowSize, int lag)
+{
+    return acf(samples, windowSize, 0) + acf(samples + lag, windowSize, 0) - 2 * acf(samples, windowSize, lag);
 }
 
 int main()
@@ -44,8 +61,7 @@ int main()
     long long minDF = LLONG_MAX;
     for (int currentLag = minLag; currentLag < maxLag; currentLag++)
     {
-        long long currentDF = df(audioFile.samples[channel].data() + candidate, windowSize, currentLag);
-        std::cout << "lag: " << currentLag << ", df: " << currentDF << std::endl;
+        long long currentDF = dfv2(audioFile.samples[channel].data() + candidate, windowSize, currentLag);
         if (currentDF < minDF)
         {
             minDF = currentDF;
