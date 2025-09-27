@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <climits>
+#include <chrono>
 #include "AudioFile.h"
 
 // Autocorrelation function
@@ -41,19 +42,22 @@ int main()
     // Get stats
     int numSamples = audioFile.getNumSamplesPerChannel();
     int sampleRate = audioFile.getSampleRate();
-    
+
     // Determine interesting lags and window size
     int minFrequency = 135;                                      // Lowest sung note (Hz)
     int maxFrequency = 1400;                                     // Highest sung note (Hz)
     int minLag = sampleRate / maxFrequency;                      // Smallest period to check (samples, rounded down)
     int maxLag = (sampleRate + minFrequency - 1) / minFrequency; // Largest period to check (samples, rounded up)
     int windowSize = maxLag * 2.5;                               // Rule of thumb is to use window size at least twice maxLag.
-    
+
     // Display lag and window size info
     std::cout << "minLag: " << minLag << " samples, i.e. " << (double)minLag * 1000 / sampleRate << " ms, i.e. " << (double)sampleRate / minLag << " Hz" << std::endl;
     std::cout << "maxLag: " << maxLag << " samples, i.e. " << (double)maxLag * 1000 / sampleRate << " ms, i.e. " << (double)sampleRate / maxLag << " Hz" << std::endl;
     std::cout << "windowSize: " << windowSize << " samples, i.e. " << (double)windowSize * 1000 / sampleRate << "ms, i.e. 2.5x maxLag" << std::endl;
-    
+
+    // Start timer
+    auto start = std::chrono::steady_clock::now();
+
     // Estimate pitch at t = 0
     int candidate = 0;
     int channel = 0;
@@ -72,5 +76,10 @@ int main()
     // Print result
     double F_0 = (double)sampleRate / optimalLag;
     std::cout << "Estimated F_0 at t = " << (double)candidate * 1000 / sampleRate << " ms: " << F_0 << std::endl;
+
+    // Stop timer and print timing results
+    auto end = std::chrono::steady_clock::now();
+    double runtime = std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count();
+    std::cout << "Runtime (s): " << runtime << std::endl;
 
 }
