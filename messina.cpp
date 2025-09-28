@@ -1,7 +1,9 @@
 #include <iostream>
-#include <vector>
-#include <climits>
+#include <iomanip>
 #include <chrono>
+#include <climits>
+#include <vector>
+
 #include "AudioFile.h"
 
 
@@ -13,14 +15,24 @@ void printMatrix(std::vector<std::vector<double>>& mat)
         std::cout << "[";
         for (double value : row)
         {
-            std::cout << "  " << value;
+            std::cout << "  " << std::setw(6) << std::setprecision(3) << value;
         }
         std::cout << "  ]" << std::endl;
     }
     std::cout << "--------------------" << std::endl;
 }
 
-void gaussianElimination(std::vector<std::vector<double>>& mat)
+void printVector(std::vector<double>& vec)
+{
+    std::cout << "[";
+    for (double value : vec)
+    {
+        std::cout << "  " << std::setw(6) << std::setprecision(3) << value;
+    }
+    std::cout << "  ]" << std::endl;
+}
+
+std::vector<double> gaussianElimination(std::vector<std::vector<double>>& mat)
 {
     std::cout << "\nOriginal Matrix" << std::endl;
     printMatrix(mat);
@@ -66,19 +78,10 @@ void gaussianElimination(std::vector<std::vector<double>>& mat)
             continue;
         }
 
-        // Otherwise, we have a pivot column. Divide the row by the current value to make the pivot 1.
-        double currentValue = mat[currentRow][currentColumn];
-        for (int j = currentColumn; j < n; j++)
-        {
-            mat[currentRow][j] /= currentValue;
-        }
-        std::cout << "\nNormalize current row" << std::endl;
-        printMatrix(mat);
-        
         // Add a multiple of the current row to each other row to make their current column value 0.
         for (int i = currentRow + 1; i < m; i++)
         {
-            double multiplier = -mat[i][currentColumn];
+            double multiplier = -mat[i][currentColumn] / mat[currentRow][currentColumn];
             for (int j = currentColumn; j < n; j++)
             {
                 mat[i][j] += mat[currentRow][j] * multiplier;
@@ -91,8 +94,29 @@ void gaussianElimination(std::vector<std::vector<double>>& mat)
         currentRow++;
     }
 
-    std::cout << "\nResulting Triangular Matrix" << std::endl;
+    std::cout << "\nResulting Upper Triangular Matrix" << std::endl;
     printMatrix(mat);
+
+    // Verify that the rank is sufficient to yield a unique solution.
+    if (currentRow < n - 1)
+    {
+        throw std::runtime_error("Gaussian elimination failed: system does not have a unique solution.");
+    }
+
+    // Perform back substitution
+    std::vector<double> solution(n - 1);
+    for (int i = m - 1; i >= 0; i--)
+    {
+        solution[i] = mat[i][n-1];
+        for (int j = n - 2; j > i; j--)
+        {
+            solution[i] -= mat[i][j] * solution[j];
+        }
+        solution[i] /= mat[i][i];
+    }
+
+    // Return solution vector
+    return solution;
 
 }
 
@@ -148,9 +172,6 @@ int main()
     std::cout << "maxLag: " << maxLag << " samples, i.e. " << (double)maxLag * 1000 / sampleRate << " ms, i.e. " << (double)sampleRate / maxLag << " Hz" << std::endl;
     std::cout << "windowSize: " << windowSize << " samples, i.e. " << (double)windowSize * 1000 / sampleRate << "ms, i.e. 2.5x maxLag" << std::endl;
 
-    // Start timer
-    auto start = std::chrono::steady_clock::now();
-
     // Estimate pitch at t = 0
     int candidate = 0;
     int channel = 0;
@@ -170,17 +191,22 @@ int main()
     double F_0 = (double)sampleRate / optimalLag;
     std::cout << "Estimated F_0 at t = " << (double)candidate * 1000 / sampleRate << " ms: " << F_0 << std::endl;
 
+    // Start timer
+    auto start = std::chrono::steady_clock::now();
+
+    // Gaussian Elimination Testing
+    std::vector<std::vector<double>> mat = {
+        { 2,  5,  2, -38},
+        { 3, -2,  4,  17},
+        {-6,  1, -7, -12}
+    };
+    std::vector<double> solution = gaussianElimination(mat);
+
     // Stop timer and print timing results
     auto end = std::chrono::steady_clock::now();
     double runtime = std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count();
     std::cout << "Runtime (s): " << runtime << std::endl;
 
-    // Gaussian Elimination Testing
-    std::vector<std::vector<double>> mat = {
-        {1, 1, 3, -1},
-        {3, 3, 4, -3},
-        {-5, -3, -6, 13}
-    };
-    gaussianElimination(mat);
+    printVector(solution);
 
 }
