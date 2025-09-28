@@ -34,14 +34,11 @@ void printVector(std::vector<double>& vec)
 
 std::vector<double> gaussianElimination(std::vector<std::vector<double>>& mat)
 {
-    std::cout << "\nOriginal Matrix" << std::endl;
-    printMatrix(mat);
-
     // Get matrix dimensions
     int m = mat.size();
     int n = mat[0].size();
 
-    // Forward elimination: for each column,
+    // Forward elimination: for each column...
     int currentRow = 0;
     for (int currentColumn = 0; currentColumn < n; currentColumn++)
     {
@@ -68,8 +65,6 @@ std::vector<double> gaussianElimination(std::vector<std::vector<double>>& mat)
         if (largestAbsValueRow != currentRow)
         {
             std::swap(mat[currentRow], mat[largestAbsValueRow]);
-            std::cout << "\nSwap rows" << std::endl;
-            printMatrix(mat);
         }
 
         // If the current value is still 0, then this is not a pivot column, so proceed to the next column.
@@ -86,16 +81,11 @@ std::vector<double> gaussianElimination(std::vector<std::vector<double>>& mat)
             {
                 mat[i][j] += mat[currentRow][j] * multiplier;
             }
-            std::cout << "\nNeutralize row" << std::endl;
-            printMatrix(mat);
         }
 
         // Advance to next row
         currentRow++;
     }
-
-    std::cout << "\nResulting Upper Triangular Matrix" << std::endl;
-    printMatrix(mat);
 
     // Verify that the rank is sufficient to yield a unique solution.
     if (currentRow < n - 1)
@@ -103,7 +93,7 @@ std::vector<double> gaussianElimination(std::vector<std::vector<double>>& mat)
         throw std::runtime_error("Gaussian elimination failed: system does not have a unique solution.");
     }
 
-    // Perform back substitution
+    // Perform back substitution to calculate solution
     std::vector<double> solution(n - 1);
     for (int i = m - 1; i >= 0; i--)
     {
