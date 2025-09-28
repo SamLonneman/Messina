@@ -4,6 +4,98 @@
 #include <chrono>
 #include "AudioFile.h"
 
+
+void printMatrix(std::vector<std::vector<double>>& mat)
+{
+    std::cout << "--------------------" << std::endl;
+    for (std::vector<double> row : mat)
+    {
+        std::cout << "[";
+        for (double value : row)
+        {
+            std::cout << "  " << value;
+        }
+        std::cout << "  ]" << std::endl;
+    }
+    std::cout << "--------------------" << std::endl;
+}
+
+void gaussianElimination(std::vector<std::vector<double>>& mat)
+{
+    std::cout << "\nOriginal Matrix" << std::endl;
+    printMatrix(mat);
+
+    // Get matrix dimensions
+    int m = mat.size();
+    int n = mat[0].size();
+
+    // Forward elimination: for each column,
+    int currentRow = 0;
+    for (int currentColumn = 0; currentColumn < n; currentColumn++)
+    {
+        // Break if currentRow is out of bounds
+        if (currentRow >= m)
+        {
+            break;
+        }
+
+        // Beginning at the current row, find the value in this column with the largest absolute value
+        int largestAbsValue = 0;
+        int largestAbsValueRow = currentRow;
+        for (int i = currentRow; i < m; i++)
+        {
+            int currentAbsValue = std::abs(mat[i][currentColumn]);
+            if (currentAbsValue > largestAbsValue)
+            {
+                largestAbsValue = currentAbsValue;
+                largestAbsValueRow = i;
+            }
+        }
+
+        // Swap current row with the found row if applicable
+        if (largestAbsValueRow != currentRow)
+        {
+            std::swap(mat[currentRow], mat[largestAbsValueRow]);
+            std::cout << "\nSwap rows" << std::endl;
+            printMatrix(mat);
+        }
+
+        // If the current value is still 0, then this is not a pivot column, so proceed to the next column.
+        if (mat[currentRow][currentColumn] == 0)
+        {
+            continue;
+        }
+
+        // Otherwise, we have a pivot column. Divide the row by the current value to make the pivot 1.
+        double currentValue = mat[currentRow][currentColumn];
+        for (int j = currentColumn; j < n; j++)
+        {
+            mat[currentRow][j] /= currentValue;
+        }
+        std::cout << "\nNormalize current row" << std::endl;
+        printMatrix(mat);
+        
+        // Add a multiple of the current row to each other row to make their current column value 0.
+        for (int i = currentRow + 1; i < m; i++)
+        {
+            double multiplier = -mat[i][currentColumn];
+            for (int j = currentColumn; j < n; j++)
+            {
+                mat[i][j] += mat[currentRow][j] * multiplier;
+            }
+            std::cout << "\nNeutralize row" << std::endl;
+            printMatrix(mat);
+        }
+
+        // Advance to next row
+        currentRow++;
+    }
+
+    std::cout << "\nResulting Triangular Matrix" << std::endl;
+    printMatrix(mat);
+
+}
+
 // Autocorrelation function
 long long acf(int16_t* samples, int windowSize, int lag)
 {
@@ -82,5 +174,13 @@ int main()
     auto end = std::chrono::steady_clock::now();
     double runtime = std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count();
     std::cout << "Runtime (s): " << runtime << std::endl;
+
+    // Gaussian Elimination Testing
+    std::vector<std::vector<double>> mat = {
+        {1, 1, 3, -1},
+        {3, 3, 4, -3},
+        {-5, -3, -6, 13}
+    };
+    gaussianElimination(mat);
 
 }
