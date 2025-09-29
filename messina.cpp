@@ -7,29 +7,22 @@
 #include "AudioFile.h"
 
 
-void printMatrix(std::vector<std::vector<double>>& mat)
-{
-    std::cout << "--------------------" << std::endl;
-    for (std::vector<double> row : mat)
-    {
-        std::cout << "[";
-        for (double value : row)
-        {
-            std::cout << "  " << std::setw(6) << std::setprecision(3) << value;
-        }
-        std::cout << "  ]" << std::endl;
-    }
-    std::cout << "--------------------" << std::endl;
-}
-
-void printVector(std::vector<double>& vec)
+void printVector(const std::vector<double>& vec)
 {
     std::cout << "[";
     for (double value : vec)
     {
-        std::cout << "  " << std::setw(6) << std::setprecision(3) << value;
+        std::cout << "  " << std::setw(10) << value;
     }
     std::cout << "  ]" << std::endl;
+}
+
+void printMatrix(const std::vector<std::vector<double>>& mat)
+{
+    for (const std::vector<double>& row : mat)
+    {
+        printVector(row);
+    }
 }
 
 std::vector<double> gaussianElimination(std::vector<std::vector<double>>& mat)
@@ -90,7 +83,7 @@ std::vector<double> gaussianElimination(std::vector<std::vector<double>>& mat)
     // Verify that the rank is sufficient to yield a unique solution.
     if (currentRow < n - 1)
     {
-        throw std::runtime_error("Gaussian elimination failed: system does not have a unique solution.");
+        throw std::runtime_error("Back substitution failed: system does not have a unique solution.");
     }
 
     // Perform back substitution to calculate solution
@@ -150,7 +143,7 @@ int main()
     int numSamples = audioFile.getNumSamplesPerChannel();
     int sampleRate = audioFile.getSampleRate();
 
-    // Determine interesting lags and window size
+    // Determine lags of interest and window size
     int minFrequency = 135;                                      // Lowest sung note (Hz)
     int maxFrequency = 1400;                                     // Highest sung note (Hz)
     int minLag = sampleRate / maxFrequency;                      // Smallest period to check (samples, rounded down)
@@ -167,9 +160,10 @@ int main()
     int channel = 0;
     int optimalLag = -1;
     long long minDF = LLONG_MAX;
+    int16_t* samples = audioFile.samples[channel].data();
     for (int currentLag = minLag; currentLag < maxLag; currentLag++)
     {
-        long long currentDF = dfv1(audioFile.samples[channel].data() + candidate, windowSize, currentLag);
+        long long currentDF = dfv1(samples + candidate, windowSize, currentLag);
         if (currentDF < minDF)
         {
             minDF = currentDF;
@@ -177,26 +171,21 @@ int main()
         }
     }
 
-    // Print result
-    double F_0 = (double)sampleRate / optimalLag;
-    std::cout << "Estimated F_0 at t = " << (double)candidate * 1000 / sampleRate << " ms: " << F_0 << std::endl;
-
-    // Start timer
-    auto start = std::chrono::steady_clock::now();
-
-    // Gaussian Elimination Testing
-    std::vector<std::vector<double>> mat = {
-        { 2,  5,  2, -38},
-        { 3, -2,  4,  17},
-        {-6,  1, -7, -12}
+    // Parabolic interpolation
+    long long priorDF = dfv1(samples + candidate, windowSize, optimalLag - 1);
+    long long optimalDF = dfv1(samples + candidate, windowSize, optimalLag);
+    long long nextDF = dfv1(samples + candidate, windowSize, optimalLag + 1);
+    std::vector<std::vector<double>> systemOfEquations =
+    {
+        { (double)((optimalLag - 1) * (optimalLag - 1)), (double)(optimalLag - 1), 1, (double)priorDF   },
+        { (double)((optimalLag    ) * (optimalLag    )), (double)(optimalLag    ), 1, (double)optimalDF },
+        { (double)((optimalLag + 1) * (optimalLag + 1)), (double)(optimalLag + 1), 1, (double)nextDF    }
     };
-    std::vector<double> solution = gaussianElimination(mat);
+    std::vector<double> solution = gaussianElimination(systemOfEquations);
+    double interpolatedOptimalLag = -solution[1] / (2 * solution[0]);
 
-    // Stop timer and print timing results
-    auto end = std::chrono::steady_clock::now();
-    double runtime = std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count();
-    std::cout << "Runtime (s): " << runtime << std::endl;
-
-    printVector(solution);
+    // From interpolated optimal lag, calculate final F_0 estimate
+    double F_0 = sampleRate / interpolatedOptimalLag;
+    std::cout << "\nEstimated F_0 at t = " << (double)candidate * 1000 / sampleRate << " ms: " << F_0 << " Hz" << std::endl;
 
 }
