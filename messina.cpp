@@ -169,7 +169,7 @@ long long dfv2(int16_t* samples, int lag)
 
 double estimateF_0(int16_t* samples)
 {
-    // Linearly search lags to find the one with the smallest DF.
+    // Linearly search for the lag with the smallest DF.
     int optimalLag = -1;
     long long minDF = LLONG_MAX;
     for (int currentLag = minLag; currentLag < maxLag; currentLag++)
@@ -196,7 +196,7 @@ int main()
 {
     // Load audio file and print summary
     AudioFile<int16_t> audioFile;
-    audioFile.load("../audio/a440.wav");
+    audioFile.load("../audio/a440_vocal.wav");
     int16_t* samples = audioFile.samples[0].data();
     
     // Get audio file properties
@@ -218,8 +218,8 @@ int main()
     std::cout << "windowSize: " << windowSize << " samples, i.e. " << samplesToMs(windowSize) << " ms, i.e. 2.5x maxLag" << std::endl;
     std::cout << "|======================================|" << std::endl << std::endl;
 
-    // Estimate pitch at first 100 samples
-    for (int i = 0; i < 1; i++)
+    // Estimate pitch throughout file, every 1000 samples
+    for (int i = 0; i < numSamples - windowSize; i += 1000)
     {
         double F_0 = estimateF_0(samples + i);
         std::cout << "Estimated F_0 at sample " << i << " (t = " << samplesToMs(i) << " ms): " << F_0 << " Hz" << std::endl;
