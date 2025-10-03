@@ -1,10 +1,9 @@
-#include <iostream>
-#include <iomanip>
-#include <chrono>
-#include <climits>
-#include <vector>
-
 #include "AudioFile.h"
+
+#include <climits>
+#include <iomanip>
+#include <iostream>
+#include <vector>
 
 
 namespace {
@@ -33,6 +32,16 @@ void printMatrix(const std::vector<std::vector<double>>& mat)
     {
         printVector(row);
     }
+}
+
+double samplesToMs(int numSamples)
+{
+    return (double)numSamples * 1000 / sampleRate;
+}
+
+double samplesToHz(int numSamples)
+{
+    return (double)sampleRate / numSamples;
 }
 
 std::vector<double> solveSystemOfEquations(std::vector<std::vector<double>>& mat)
@@ -179,7 +188,7 @@ double estimateF_0(int16_t* samples)
     double periodInSamples = parabolicInterpolation(optimalLag - 1, priorDF, optimalLag, minDF, optimalLag + 1, nextDF);
 
     // From interpolated optimal lag, calculate final F_0 estimate
-    return sampleRate / periodInSamples;
+    return samplesToHz(periodInSamples);
 
 }
 
@@ -204,16 +213,16 @@ int main()
     // Print relevant debug info
     std::cout << std::endl;
     audioFile.printSummary();
-    std::cout << "minLag: " << minLag << " samples, i.e. " << (double)minLag * 1000 / sampleRate << " ms, i.e. " << (double)sampleRate / minLag << " Hz" << std::endl;
-    std::cout << "maxLag: " << maxLag << " samples, i.e. " << (double)maxLag * 1000 / sampleRate << " ms, i.e. " << (double)sampleRate / maxLag << " Hz" << std::endl;
-    std::cout << "windowSize: " << windowSize << " samples, i.e. " << (double)windowSize * 1000 / sampleRate << " ms, i.e. 2.5x maxLag" << std::endl;
+    std::cout << "minLag: " << minLag << " samples, i.e. " << samplesToMs(minLag) << " ms, i.e. " << samplesToHz(minLag) << " Hz" << std::endl;
+    std::cout << "maxLag: " << maxLag << " samples, i.e. " << samplesToMs(maxLag) << " ms, i.e. " << samplesToHz(maxLag) << " Hz" << std::endl;
+    std::cout << "windowSize: " << windowSize << " samples, i.e. " << samplesToMs(windowSize) << " ms, i.e. 2.5x maxLag" << std::endl;
     std::cout << "|======================================|" << std::endl << std::endl;
 
     // Estimate pitch at first 100 samples
-    for (int i = 0; i < 100; i++)
+    for (int i = 0; i < 1; i++)
     {
         double F_0 = estimateF_0(samples + i);
-        std::cout << "Estimated F_0 at sample " << i << " (t = " << (double)i * 1000 / sampleRate << " ms): " << F_0 << " Hz" << std::endl;
+        std::cout << "Estimated F_0 at sample " << i << " (t = " << samplesToMs(i) << " ms): " << F_0 << " Hz" << std::endl;
     }
 
 }
