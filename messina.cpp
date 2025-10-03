@@ -35,6 +35,16 @@ void printMatrix(const std::vector<std::vector<double>>& mat)
     }
 }
 
+double samplesToMs(int numSamples)
+{
+    return (double)numSamples * 1000 / sampleRate;
+}
+
+double samplesToHz(int numSamples)
+{
+    return (double)sampleRate / numSamples;
+}
+
 std::vector<double> solveSystemOfEquations(std::vector<std::vector<double>>& mat)
 {
     // Get matrix dimensions
@@ -204,9 +214,9 @@ int main()
     // Print relevant debug info
     std::cout << std::endl;
     audioFile.printSummary();
-    std::cout << "minLag: " << minLag << " samples, i.e. " << (double)minLag * 1000 / sampleRate << " ms, i.e. " << (double)sampleRate / minLag << " Hz" << std::endl;
-    std::cout << "maxLag: " << maxLag << " samples, i.e. " << (double)maxLag * 1000 / sampleRate << " ms, i.e. " << (double)sampleRate / maxLag << " Hz" << std::endl;
-    std::cout << "windowSize: " << windowSize << " samples, i.e. " << (double)windowSize * 1000 / sampleRate << " ms, i.e. 2.5x maxLag" << std::endl;
+    std::cout << "minLag: " << minLag << " samples, i.e. " << samplesToMs(minLag) << " ms, i.e. " << samplesToHz(minLag) << " Hz" << std::endl;
+    std::cout << "maxLag: " << maxLag << " samples, i.e. " << samplesToMs(maxLag) << " ms, i.e. " << samplesToHz(maxLag) << " Hz" << std::endl;
+    std::cout << "windowSize: " << windowSize << " samples, i.e. " << samplesToMs(windowSize) << " ms, i.e. 2.5x maxLag" << std::endl;
     std::cout << "|======================================|" << std::endl << std::endl;
 
     // Estimate pitch at first 100 samples
