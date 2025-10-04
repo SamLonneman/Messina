@@ -2,10 +2,11 @@
 # Messina Audio Processing Project
 # ==============================================================================
 
+# Minimum CMake version and project definition
 cmake_minimum_required(VERSION 3.16)
 project(Messina 
     VERSION 1.0.0
-    DESCRIPTION "Audio processing application using AudioFile library"
+    DESCRIPTION "Audio processing application"
     LANGUAGES CXX
 )
 
@@ -27,9 +28,7 @@ endif()
 # Dependencies
 # ==============================================================================
 
-# Add the AudioFile library
-message(STATUS "Adding AudioFile library from external/AudioFile")
-add_subdirectory(external/AudioFile)
+# Include PortAudio
 add_subdirectory(external/portaudio)
 
 # ==============================================================================
@@ -50,20 +49,7 @@ set_target_properties(messina PROPERTIES
 # Link libraries
 target_link_libraries(messina 
     PRIVATE 
-        AudioFile
         portaudio
-)
-
-# ==============================================================================
-# Custom Targets
-# ==============================================================================
-
-# Custom target to run the executable
-add_custom_target(run
-    COMMAND messina
-    DEPENDS messina
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Running Messina application"
 )
 
 # ==============================================================================
