@@ -8,17 +8,23 @@
 
 
 namespace {
+
+    // Hyperparameters
     const int minFrequency = 135; // Lowest sung note (Hz)
     const int maxFrequency = 1400; // Highest sung note (Hz)
     const float windowSizeScalar = 2;
     const double absoluteThreshold = 0.1;
+
+    // Global variables
     int numSamples;
     int sampleRate;
     int minLag;
     int maxLag;
     int windowSize;
+
 }
 
+// Pretty-print a vector
 void printVector(const std::vector<double>& vec)
 {
     std::cout << "[";
@@ -29,6 +35,7 @@ void printVector(const std::vector<double>& vec)
     std::cout << "  ]" << std::endl;
 }
 
+// Pretty-print a matrix
 void printMatrix(const std::vector<std::vector<double>>& mat)
 {
     for (const std::vector<double>& row : mat)
@@ -37,16 +44,19 @@ void printMatrix(const std::vector<std::vector<double>>& mat)
     }
 }
 
+// Convert a period expressed in samples into a period expressed in Milliseconds
 double samplesToMs(double numSamples)
 {
     return numSamples * 1000 / sampleRate;
 }
 
+// Convert a period expressed in samples into a frequency expressed in Hz
 double samplesToHz(double numSamples)
 {
     return sampleRate / numSamples;
 }
 
+// Given an augmented matrix representing a system of linear equations, returns a solution vector using Gaussian elimination with back substitution.
 std::vector<double> solveSystemOfEquations(std::vector<std::vector<double>>& mat)
 {
     // Get matrix dimensions
@@ -125,12 +135,16 @@ std::vector<double> solveSystemOfEquations(std::vector<std::vector<double>>& mat
 
 }
 
+// Given three points, returns the x value of the vertex of the interpolated parabola
 double parabolicInterpolation(double x1, double y1, double x2, double y2, double x3, double y3)
 {
+    // If the three points are colinear, the parabola is trivial.
     if (y1 == y2 == y3)
     {
         return x2;
     }
+
+    // Otherwise, prepare and solve a system of linear equations for the parabolic coefficients
     std::vector<std::vector<double>> systemOfEquations =
     {
         { std::pow(x1, 2), x1, 1, y1 },
@@ -138,7 +152,10 @@ double parabolicInterpolation(double x1, double y1, double x2, double y2, double
         { std::pow(x3, 2), x3, 1, y3 }
     };
     std::vector<double> coefficients = solveSystemOfEquations(systemOfEquations);
+
+    // Return x position of vertex by calculating the value of x for which the derivative of the parabola is 0.
     return -coefficients[1] / (2 * coefficients[0]);
+
 }
 
 // Autocorrelation function
@@ -170,21 +187,28 @@ long long dfv2(int16_t* samples, int lag)
     return acf(samples, 0) + acf(samples + lag, 0) - 2 * acf(samples, lag);
 }
 
+// Given a waveform at some time t, estimate the fundamental frequency using the YIN algorithm
 double estimateF_0(int16_t* samples)
 {
-    // Linearly search for the lag with the smallest DF.
+    // For each lag value up to maxLag,
     int optimalLag = -1;
     double minCMNDF = std::numeric_limits<double>::max();
     long long sumDF = 0;
     for (int currentLag = 0; currentLag < maxLag; currentLag++)
     {
+        
+        // Calculate the cumulative mean normalized difference function of that lag at time t
         long long currentDF = dfv1(samples, currentLag);
         sumDF += currentDF;
         double currentCMNDF = currentLag ? (double)currentDF * currentLag / sumDF : 1;
+
+        // Find the lag value which minimizes the CMNDF
         if (currentCMNDF < minCMNDF)
         {
             minCMNDF = currentCMNDF;
             optimalLag = currentLag;
+
+            // If a lag value is found with a CMNDF under the absolute threshold, select it immediately
             if (currentCMNDF < absoluteThreshold)
             {
                 break;
@@ -192,17 +216,18 @@ double estimateF_0(int16_t* samples)
         }
     }
 
-    // Parabolic interpolation of standard difference function
+    // Use parabolic interpolation of the neighbors of the selected lag value to capture the true period if it lies between samples
     long long priorDF = dfv1(samples, optimalLag - 1);
     long long optimalDF = dfv1(samples, optimalLag);
     long long nextDF = dfv1(samples, optimalLag + 1);
     double periodInSamples = parabolicInterpolation(optimalLag - 1, priorDF, optimalLag, optimalDF, optimalLag + 1, nextDF);
 
-    // From interpolated optimal lag, calculate final F_0 estimate
+    // Calculate and return final fundamental frequency estimate from interpolated period
     return samplesToHz(periodInSamples);
 
 }
 
+// Entry point
 int main()
 {
     // Load audio file and print summary
