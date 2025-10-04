@@ -30,6 +30,7 @@ endif()
 # Add the AudioFile library
 message(STATUS "Adding AudioFile library from external/AudioFile")
 add_subdirectory(external/AudioFile)
+add_subdirectory(external/portaudio)
 
 # ==============================================================================
 # Target Definition
@@ -50,6 +51,7 @@ set_target_properties(messina PROPERTIES
 target_link_libraries(messina 
     PRIVATE 
         AudioFile
+        portaudio
 )
 
 # ==============================================================================

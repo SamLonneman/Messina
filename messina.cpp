@@ -1,4 +1,5 @@
 #include "AudioFile.h"
+#include "portaudio.h"
 
 #include <climits>
 #include <iomanip>
