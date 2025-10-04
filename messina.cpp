@@ -8,8 +8,10 @@
 
 
 namespace {
-    int minFrequency;
-    int maxFrequency;
+    const int minFrequency = 135; // Lowest sung note (Hz)
+    const int maxFrequency = 1400; // Highest sung note (Hz)
+    const float windowSizeScalar = 2;
+    const double absoluteThreshold = 0.1;
     int numSamples;
     int sampleRate;
     int minLag;
@@ -183,6 +185,10 @@ double estimateF_0(int16_t* samples)
         {
             minCMNDF = currentCMNDF;
             optimalLag = currentLag;
+            if (currentCMNDF < absoluteThreshold)
+            {
+                break;
+            }
         }
     }
 
@@ -209,11 +215,9 @@ int main()
     sampleRate = audioFile.getSampleRate();
     
     // Determine lags of interest and window size
-    minFrequency = 135;                                      // Lowest sung note (Hz)
-    maxFrequency = 1400;                                     // Highest sung note (Hz)
     minLag = sampleRate / maxFrequency;                      // Smallest period to check (samples, rounded down)
     maxLag = (sampleRate + minFrequency - 1) / minFrequency; // Largest period to check (samples, rounded up)
-    windowSize = maxLag * 2.5;                               // Rule of thumb is to use window size at least twice maxLag.
+    windowSize = maxLag * windowSizeScalar;                  // Rule of thumb is to use window size at least twice maxLag.
     
     // Print relevant debug info
     std::cout << std::endl;
