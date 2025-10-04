@@ -8,10 +8,9 @@
 
 
 namespace {
-
     // Hyperparameters
-    const int minFrequency = 135; // Lowest sung note (Hz)
-    const int maxFrequency = 1400; // Highest sung note (Hz)
+    const int minFrequency = 100; // Lowest sung note (Hz)
+    const int maxFrequency = 800; // Highest sung note (Hz)
     const float windowSizeScalar = 2;
     const double absoluteThreshold = 0.1;
 
@@ -194,6 +193,7 @@ double estimateF_0(int16_t* samples)
     int optimalLag = -1;
     double minCMNDF = std::numeric_limits<double>::max();
     long long sumDF = 0;
+    bool thresholdReached = false;
     for (int currentLag = 0; currentLag < maxLag; currentLag++)
     {
         
@@ -202,17 +202,21 @@ double estimateF_0(int16_t* samples)
         sumDF += currentDF;
         double currentCMNDF = currentLag ? (double)currentDF * currentLag / sumDF : 1;
 
-        // Find the lag value which minimizes the CMNDF
+        // Keep track of the lag value which minimizes the CMNDF
         if (currentCMNDF < minCMNDF)
         {
             minCMNDF = currentCMNDF;
             optimalLag = currentLag;
+        }
 
-            // If a lag value is found with a CMNDF under the absolute threshold, select it immediately
-            if (currentCMNDF < absoluteThreshold)
-            {
-                break;
-            }
+        // If CMNDF falls below and then exceeds the absoluteThreshold, immediately select the best lag found thusfar
+        if (currentCMNDF < absoluteThreshold)
+        {
+            thresholdReached = true;
+        }
+        else if (thresholdReached)
+        {
+            break;
         }
     }
 
