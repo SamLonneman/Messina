@@ -3,6 +3,7 @@
 #include <climits>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <vector>
 
 
@@ -34,14 +35,14 @@ void printMatrix(const std::vector<std::vector<double>>& mat)
     }
 }
 
-double samplesToMs(int numSamples)
+double samplesToMs(double numSamples)
 {
-    return (double)numSamples * 1000 / sampleRate;
+    return numSamples * 1000 / sampleRate;
 }
 
-double samplesToHz(int numSamples)
+double samplesToHz(double numSamples)
 {
-    return (double)sampleRate / numSamples;
+    return sampleRate / numSamples;
 }
 
 std::vector<double> solveSystemOfEquations(std::vector<std::vector<double>>& mat)
@@ -171,21 +172,25 @@ double estimateF_0(int16_t* samples)
 {
     // Linearly search for the lag with the smallest DF.
     int optimalLag = -1;
-    long long minDF = LLONG_MAX;
-    for (int currentLag = minLag; currentLag < maxLag; currentLag++)
+    double minCMNDF = std::numeric_limits<double>::max();
+    long long sumDF = 0;
+    for (int currentLag = 0; currentLag < maxLag; currentLag++)
     {
         long long currentDF = dfv1(samples, currentLag);
-        if (currentDF < minDF)
+        sumDF += currentDF;
+        double currentCMNDF = currentLag ? (double)currentDF * currentLag / sumDF : 1;
+        if (currentCMNDF < minCMNDF)
         {
-            minDF = currentDF;
+            minCMNDF = currentCMNDF;
             optimalLag = currentLag;
         }
     }
 
-    // Parabolic interpolation
+    // Parabolic interpolation of standard difference function
     long long priorDF = dfv1(samples, optimalLag - 1);
+    long long optimalDF = dfv1(samples, optimalLag);
     long long nextDF = dfv1(samples, optimalLag + 1);
-    double periodInSamples = parabolicInterpolation(optimalLag - 1, priorDF, optimalLag, minDF, optimalLag + 1, nextDF);
+    double periodInSamples = parabolicInterpolation(optimalLag - 1, priorDF, optimalLag, optimalDF, optimalLag + 1, nextDF);
 
     // From interpolated optimal lag, calculate final F_0 estimate
     return samplesToHz(periodInSamples);
@@ -219,10 +224,15 @@ int main()
     std::cout << "|======================================|" << std::endl << std::endl;
 
     // Estimate pitch throughout file, every 1000 samples
+    double sum = 0;
+    int n = 0;
     for (int i = 0; i < numSamples - windowSize; i += 1000)
     {
         double F_0 = estimateF_0(samples + i);
+        sum += F_0;
+        n++;
         std::cout << "Estimated F_0 at sample " << i << " (t = " << samplesToMs(i) << " ms): " << F_0 << " Hz" << std::endl;
     }
+    std::cout << "Average F_0: " << sum / n << std::endl;
 
 }
