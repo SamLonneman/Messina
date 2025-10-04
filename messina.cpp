@@ -157,6 +157,12 @@ double parabolicInterpolation(double x1, double y1, double x2, double y2, double
 
 }
 
+// Given three points (x values must be separated by 1), calculate x value of vertex of interpolated parabola via magic
+double parabolicInterpolation2(double x1, double y1, double x2, double y2, double x3, double y3)
+{
+    return x2 + (y1 - y3) / (2.0 * (y1 - 2.0 * y2 + y3));
+}
+
 // Autocorrelation function
 long long acf(int16_t* samples, int lag)
 {
@@ -224,7 +230,7 @@ double estimateF_0(int16_t* samples)
     long long priorDF = dfv1(samples, optimalLag - 1);
     long long optimalDF = dfv1(samples, optimalLag);
     long long nextDF = dfv1(samples, optimalLag + 1);
-    double periodInSamples = parabolicInterpolation(optimalLag - 1, priorDF, optimalLag, optimalDF, optimalLag + 1, nextDF);
+    double periodInSamples = parabolicInterpolation2(optimalLag - 1, priorDF, optimalLag, optimalDF, optimalLag + 1, nextDF);
 
     // Calculate and return final fundamental frequency estimate from interpolated period
     return samplesToHz(periodInSamples);
