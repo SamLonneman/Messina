@@ -92,8 +92,6 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     // Cast input and userData to appropriate types
     const int16_t* in = static_cast<const int16_t*>(input);
     int16_t* out = static_cast<int16_t*>(output);
-    std::vector<int16_t>& buffer = *(std::vector<int16_t>*)userData;
-    buffer.assign(in, in + frameCount);
 
     // If no input or output, just continue
     if (!in || !out)
@@ -103,7 +101,7 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
 
     // Direct passthrough
     for (unsigned long i = 0; i < frameCount; i++)
-        out[i] = buffer[i];
+        out[i] = in[i];
     
     // If not enough data, say something!
     if (frameCount < WINDOW_SIZE + MAX_LAG + 1)
@@ -113,7 +111,7 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     }
 
     // Estimate pitch
-    double F_0 = estimateF_0(buffer.data());
+    double F_0 = estimateF_0(in);
 
     // Smooth pitch output
     if (F_0 > 95 && F_0 < 800) {
@@ -135,29 +133,32 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
 // Entry point
 int main()
 {
-    // Real time pitch detection
+    // Initialize PortAudio
     Pa_Initialize();
     PaStream* stream;
-    std::vector<int16_t> audioBuffer(BUFFER_SIZE);
+
+    // Set up input and output parameters
     PaStreamParameters inputParams, outputParams;
     inputParams.device = Pa_GetDefaultInputDevice();
     inputParams.channelCount = 1;
     inputParams.sampleFormat = paInt16;
-    // inputParams.suggestedLatency = Pa_GetDeviceInfo(inputParams.device)->defaultLowInputLatency;
-    inputParams.suggestedLatency = 0;
+    inputParams.suggestedLatency = 0; // Remember Pa_GetDeviceInfo(inputParams.device)->defaultLowInputLatency
     inputParams.hostApiSpecificStreamInfo = nullptr;
     outputParams.device = Pa_GetDefaultOutputDevice();
     outputParams.channelCount = 1;
     outputParams.sampleFormat = paInt16;
-    // outputParams.suggestedLatency = Pa_GetDeviceInfo(outputParams.device)->defaultLowOutputLatency;
-    outputParams.suggestedLatency = 0;
+    outputParams.suggestedLatency = 0; // Remember Pa_GetDeviceInfo(outputParams.device)->defaultLowOutputLatency
     outputParams.hostApiSpecificStreamInfo = nullptr;
+
+    // Open and start stream
+    Pa_OpenStream(&stream, &inputParams, &outputParams, SAMPLE_RATE, BUFFER_SIZE, paClipOff, audioCallback, nullptr);
     // Pa_OpenDefaultStream(&stream, 1, 1, paInt16, SAMPLE_RATE, 0, audioCallback, &audioBuffer);
-    Pa_OpenStream(&stream, &inputParams, &outputParams, SAMPLE_RATE, BUFFER_SIZE, paClipOff, audioCallback, &audioBuffer);
     Pa_StartStream(stream);
 
+    // Pause the main thread until user input
     std::cin.get();
 
+    // Stop and close stream, terminate PortAudio
     Pa_StopStream(stream);
     Pa_CloseStream(stream);
     Pa_Terminate();
