@@ -1,24 +1,30 @@
 #include "portaudio.h"
 
+#include <array>
 #include <climits>
 #include <cstdint>
+#include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <string>
 #include <vector>
 
 
 namespace {
     // User-configurable constants
-    const int MIN_FREQUENCY = 100;
-    const float WINDOW_SIZE_SCALAR = 1;
-    const double ABSOLUTE_THRESHOLD = 0.1;
-    const int SAMPLE_RATE = 44100;
+    constexpr int MIN_FREQUENCY = 100;
+    constexpr float WINDOW_SIZE_SCALAR = 1;
+    constexpr double ABSOLUTE_THRESHOLD = 0.1;
+    constexpr int SAMPLE_RATE = 44100;
 
     // Derived constants
-    const int MAX_LAG = (SAMPLE_RATE + MIN_FREQUENCY - 1) / MIN_FREQUENCY;
-    const int WINDOW_SIZE = MAX_LAG * WINDOW_SIZE_SCALAR;
-    const int BUFFER_SIZE = WINDOW_SIZE + MAX_LAG + 1;
+    constexpr int MAX_LAG = (SAMPLE_RATE + MIN_FREQUENCY - 1) / MIN_FREQUENCY;
+    constexpr int WINDOW_SIZE = MAX_LAG * WINDOW_SIZE_SCALAR;
+    constexpr int BUFFER_SIZE = WINDOW_SIZE + MAX_LAG + 1;
+
+    // Global constants
+    constexpr std::array<const char*, 12> NOTES = {" A", "A#", " B", " C", "C#", " D", "D#", " E", " F", "F#", " G", "G#"};
 
     // Global state
     double priorF_0 = 0;
@@ -87,6 +93,17 @@ double estimateF_0(const int16_t* samples)
 
 }
 
+// Given a fundamental frequency F_0 in Hz, return the note name
+std::string frequencyToNote(double F_0)
+{
+    int differenceInCents = std::round(std::log2(F_0 / 440.0) * 1200);
+    int differenceInSemitones = (differenceInCents + 50) / 100;
+    std::string note = NOTES[((differenceInSemitones % 12) + 12) % 12];
+    int octave = ((differenceInSemitones + 9) / 12) + 4;
+    int errorInCents = ((((differenceInCents + 50) % 100) + 100) % 100) - 50;
+    return note + std::to_string(octave) + " (" + (errorInCents >= 0 ? "+" : "") + std::to_string(errorInCents) + " cents)";
+}
+
 static int audioCallback(const void* input, void* output, unsigned long frameCount, const PaStreamCallbackTimeInfo* timeInfo, PaStreamCallbackFlags statusFlags, void* userData)
 {
     // Cast input and userData to appropriate types
@@ -103,10 +120,10 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     for (unsigned long i = 0; i < frameCount; i++)
         out[i] = in[i];
     
-    // If not enough data, say something!
+    // If not enough data to run Yin algorithm, say something!
     if (frameCount < WINDOW_SIZE + MAX_LAG + 1)
     {
-        std::cout << "Not enough data!" << std::endl;
+        std::cout << "Not enough data to run Yin algorithm!" << std::endl;
         return paContinue;
     }
 
@@ -123,7 +140,7 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     }
 
     // Print pitch
-    std::cout << "Pitch: " << std::fixed << std::setprecision(2) << F_0 << " Hz" << std::endl;
+    std::cout << "Pitch: " << frequencyToNote(F_0) << std::endl;
     
     // Continue processing
     return paContinue;
@@ -152,7 +169,7 @@ int main()
 
     // Open and start stream
     Pa_OpenStream(&stream, &inputParams, &outputParams, SAMPLE_RATE, BUFFER_SIZE, paClipOff, audioCallback, nullptr);
-    // Pa_OpenDefaultStream(&stream, 1, 1, paInt16, SAMPLE_RATE, 0, audioCallback, &audioBuffer);
+    // Pa_OpenDefaultStream(&stream, 1, 1, paInt16, SAMPLE_RATE, BUFFER_SIZE, audioCallback, nullptr);
     Pa_StartStream(stream);
 
     // Pause the main thread until user input
