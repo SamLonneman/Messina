@@ -1,4 +1,5 @@
 #include "portaudio.h"
+#include "CircularBuffer.h"
 
 #include <array>
 #include <climits>
@@ -28,6 +29,7 @@ namespace {
 
     // Global state
     double priorF_0 = 0;
+
 }
 
 // Given three points (x values must be separated by 1), calculate x value of vertex of interpolated parabola via magic
@@ -106,9 +108,10 @@ std::string frequencyToNote(double F_0)
 
 static int audioCallback(const void* input, void* output, unsigned long frameCount, const PaStreamCallbackTimeInfo* timeInfo, PaStreamCallbackFlags statusFlags, void* userData)
 {
-    // Cast input and userData to appropriate types
+    // Cast input, output, and buffer to appropriate types
     const int16_t* in = static_cast<const int16_t*>(input);
     int16_t* out = static_cast<int16_t*>(output);
+    CircularBuffer<int16_t>& circularBuffer = *static_cast<CircularBuffer<int16_t>*>(userData);
 
     // If no input or output, just continue
     if (!in || !out)
@@ -116,20 +119,24 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
         return paContinue;
     }
 
-    // Direct passthrough
-    for (unsigned long i = 0; i < frameCount; i++)
-        out[i] = in[i];
+    // Write into circular buffer
+    circularBuffer.write(in, frameCount);
+
     
     // If not enough data to run Yin algorithm, say something!
-    if (frameCount < WINDOW_SIZE + MAX_LAG + 1)
+    if (circularBuffer.size() < BUFFER_SIZE)
     {
-        std::cout << "Not enough data to run Yin algorithm!" << std::endl;
+        std::cout << "Not enough data to run Yin algorithm! We need more data! Continuing..." << std::endl;
         return paContinue;
     }
 
+    // Read circular buffer into yinBuffer
+    std::array<int16_t, BUFFER_SIZE> yinBuffer;
+    circularBuffer.read(&yinBuffer[0], BUFFER_SIZE);
+    
     // Estimate pitch
-    double F_0 = estimateF_0(in);
-
+    double F_0 = estimateF_0(&yinBuffer[0]);
+    
     // Smooth pitch output
     if (F_0 > 95 && F_0 < 800) {
         priorF_0 = F_0;
@@ -138,10 +145,14 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     {
         F_0 = priorF_0;
     }
-
+    
     // Print pitch
     std::cout << "Pitch: " << frequencyToNote(F_0) << std::endl;
     
+    // Read circular buffer into out
+    circularBuffer.read(out, frameCount);
+    circularBuffer.consume(frameCount);
+
     // Continue processing
     return paContinue;
     
@@ -153,6 +164,9 @@ int main()
     // Initialize PortAudio
     Pa_Initialize();
     PaStream* stream;
+
+    // Initialize a circular buffer
+    CircularBuffer<int16_t> circularBuffer(BUFFER_SIZE);
 
     // Set up input and output parameters
     PaStreamParameters inputParams, outputParams;
@@ -168,8 +182,8 @@ int main()
     outputParams.hostApiSpecificStreamInfo = nullptr;
 
     // Open and start stream
-    Pa_OpenStream(&stream, &inputParams, &outputParams, SAMPLE_RATE, BUFFER_SIZE, paClipOff, audioCallback, nullptr);
-    // Pa_OpenDefaultStream(&stream, 1, 1, paInt16, SAMPLE_RATE, BUFFER_SIZE, audioCallback, nullptr);
+    Pa_OpenStream(&stream, &inputParams, &outputParams, SAMPLE_RATE, BUFFER_SIZE, paClipOff, audioCallback, &circularBuffer);
+    // Pa_OpenDefaultStream(&stream, 1, 1, paInt16, SAMPLE_RATE, 256, audioCallback, &circularBuffer);
     Pa_StartStream(stream);
 
     // Pause the main thread until user input

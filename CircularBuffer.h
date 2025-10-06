@@ -37,7 +37,7 @@ public:
         size_ += numSamples;
     }
 
-    void read(T *output, size_t numSamples, size_t offset) const
+    void read(T *output, size_t numSamples, size_t offset=0) const
     {
         if (offset + numSamples > size_)
         {
