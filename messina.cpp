@@ -18,11 +18,15 @@ namespace {
     constexpr float WINDOW_SIZE_SCALAR = 1;
     constexpr double ABSOLUTE_THRESHOLD = 0.1;
     constexpr int SAMPLE_RATE = 44100;
+    constexpr int HOP_SIZE = 256;
+    constexpr double SUGGESTED_INPUT_LATENCY = 0;
+    constexpr double SUGGESTED_OUTPUT_LATENCY = 0.02;
 
     // Derived constants
     constexpr int MAX_LAG = (SAMPLE_RATE + MIN_FREQUENCY - 1) / MIN_FREQUENCY;
     constexpr int WINDOW_SIZE = MAX_LAG * WINDOW_SIZE_SCALAR;
-    constexpr int BUFFER_SIZE = WINDOW_SIZE + MAX_LAG + 1;
+    constexpr int YIN_REQUIRED_SIZE = WINDOW_SIZE + MAX_LAG;
+    constexpr int BUFFER_SIZE = YIN_REQUIRED_SIZE + HOP_SIZE;
 
     // Global constants
     constexpr std::array<const char*, 12> NOTES = {" A", "A#", " B", " C", "C#", " D", "D#", " E", " F", "F#", " G", "G#"};
@@ -121,18 +125,16 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
 
     // Write into circular buffer
     circularBuffer.write(in, frameCount);
-
     
-    // If not enough data to run Yin algorithm, say something!
-    if (circularBuffer.size() < BUFFER_SIZE)
+    // Keep collecting data until we have enough to run YIN
+    if (circularBuffer.size() < YIN_REQUIRED_SIZE)
     {
-        std::cout << "Not enough data to run Yin algorithm! We need more data! Continuing..." << std::endl;
         return paContinue;
     }
 
     // Read circular buffer into yinBuffer
-    std::array<int16_t, BUFFER_SIZE> yinBuffer;
-    circularBuffer.read(&yinBuffer[0], BUFFER_SIZE);
+    std::array<int16_t, YIN_REQUIRED_SIZE> yinBuffer;
+    circularBuffer.read(&yinBuffer[0], YIN_REQUIRED_SIZE);
     
     // Estimate pitch
     double F_0 = estimateF_0(&yinBuffer[0]);
@@ -149,7 +151,7 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     // Print pitch
     std::cout << "Pitch: " << frequencyToNote(F_0) << std::endl;
     
-    // Read circular buffer into out
+    // Consume from the circular buffer now that we have run YIN
     circularBuffer.read(out, frameCount);
     circularBuffer.consume(frameCount);
 
@@ -165,25 +167,27 @@ int main()
     Pa_Initialize();
     PaStream* stream;
 
-    // Initialize a circular buffer
-    CircularBuffer<int16_t> circularBuffer(BUFFER_SIZE);
-
-    // Set up input and output parameters
-    PaStreamParameters inputParams, outputParams;
+    // Set up input parameters
+    PaStreamParameters inputParams;
     inputParams.device = Pa_GetDefaultInputDevice();
     inputParams.channelCount = 1;
     inputParams.sampleFormat = paInt16;
-    inputParams.suggestedLatency = 0; // Remember Pa_GetDeviceInfo(inputParams.device)->defaultLowInputLatency
+    inputParams.suggestedLatency = SUGGESTED_INPUT_LATENCY;
     inputParams.hostApiSpecificStreamInfo = nullptr;
+
+    // Set up output parameters
+    PaStreamParameters outputParams;
     outputParams.device = Pa_GetDefaultOutputDevice();
     outputParams.channelCount = 1;
     outputParams.sampleFormat = paInt16;
-    outputParams.suggestedLatency = 0; // Remember Pa_GetDeviceInfo(outputParams.device)->defaultLowOutputLatency
+    outputParams.suggestedLatency = SUGGESTED_OUTPUT_LATENCY;
     outputParams.hostApiSpecificStreamInfo = nullptr;
 
+    // Initialize a circular buffer to persist between callbacks
+    CircularBuffer<int16_t> circularBuffer(BUFFER_SIZE);
+
     // Open and start stream
-    Pa_OpenStream(&stream, &inputParams, &outputParams, SAMPLE_RATE, BUFFER_SIZE, paClipOff, audioCallback, &circularBuffer);
-    // Pa_OpenDefaultStream(&stream, 1, 1, paInt16, SAMPLE_RATE, 256, audioCallback, &circularBuffer);
+    Pa_OpenStream(&stream, &inputParams, &outputParams, SAMPLE_RATE, HOP_SIZE, paClipOff, audioCallback, &circularBuffer);
     Pa_StartStream(stream);
 
     // Pause the main thread until user input
