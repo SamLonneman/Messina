@@ -8,6 +8,7 @@ template <typename T>
 class CircularBuffer
 {   
 private:
+    // Internal working variables
     std::vector<T> buffer_;
     size_t capacity_;
     size_t writePtr_;
@@ -15,6 +16,7 @@ private:
     size_t size_;
 
 public:
+    // Construct a circular buffer with a given capacity
     CircularBuffer(size_t capacity) :
         buffer_(capacity, 0),
         capacity_(capacity),
@@ -23,6 +25,7 @@ public:
         size_(0)
     { }
 
+    // Write data to the circular buffer
     void write(const T *data, size_t numSamples)
     {
         if (numSamples > capacity_ - size_)
@@ -37,6 +40,7 @@ public:
         size_ += numSamples;
     }
 
+    // Read data from the circular buffer, with optional offset
     void read(T *output, size_t numSamples, size_t offset=0) const
     {
         if (offset + numSamples > size_)
@@ -50,6 +54,7 @@ public:
         std::memcpy(output + firstChunk, &buffer_[0], secondChunk * sizeof(T));
     }
 
+    // Consume data from the circular buffer
     void consume(size_t numSamples)
     {
         if (numSamples > size_)
@@ -60,6 +65,7 @@ public:
         size_ -= numSamples;
     }
 
+    // Get the current size of the buffer
     size_t size() const
     {
         return size_;
