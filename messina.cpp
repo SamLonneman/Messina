@@ -129,6 +129,8 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     // Keep collecting data until we have enough to run YIN
     if (circularBuffer.size() < YIN_REQUIRED_SIZE)
     {
+        // Until then, just send input directly to output
+        std::memcpy(out, in, frameCount);
         return paContinue;
     }
 
