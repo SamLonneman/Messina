@@ -15,7 +15,7 @@
 namespace {
     // User-configurable constants
     constexpr int MIN_FREQUENCY = 100;
-    constexpr float WINDOW_SIZE_SCALAR = 1;
+    constexpr float WINDOW_SIZE_SCALAR = 2;
     constexpr double ABSOLUTE_THRESHOLD = 0.1;
     constexpr int SAMPLE_RATE = 44100;
     constexpr int HOP_SIZE = 256;
