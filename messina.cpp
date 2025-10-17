@@ -13,6 +13,7 @@
 
 
 namespace {
+
     // User-configurable constants
     constexpr int MIN_FREQUENCY = 100;
     constexpr double WINDOW_SIZE_FACTOR = 2.0;
@@ -31,9 +32,12 @@ namespace {
     // Global constants
     constexpr std::array<const char*, 12> NOTES = {" A", "A#", " B", " C", "C#", " D", "D#", " E", " F", "F#", " G", "G#"};
 
-    // Global state
-    double priorF_0 = 0;
+}
 
+// Modulo operation for doubles since fmod is technically a remainder operator
+double mod(double a, double b)
+{
+    return a - b * std::floor(a / b);
 }
 
 // Given three points (x values must be separated by 1), calculate x value of vertex of interpolated parabola via magic
@@ -64,7 +68,7 @@ double estimateF_0(const int16_t* samples)
     bool thresholdReached = false;
     for (int currentLag = 0; currentLag < MAX_LAG; currentLag++)
     {
-        
+
         // Calculate the cumulative mean normalized difference function of that lag at time t
         long long currentDF = df(samples, currentLag);
         sumDF += currentDF;
@@ -124,24 +128,23 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     }
 
     // Write into circular buffer
-    circularBuffer.write(in, frameCount);
-    
+    circularBuffer.write(in, HOP_SIZE);
+
     // Keep collecting data until we have enough to run YIN
     if (circularBuffer.size() < YIN_REQUIRED_SIZE)
     {
-        // Until then, just send input directly to output
-        std::memcpy(out, in, frameCount);
         return paContinue;
     }
 
     // Read circular buffer into yinBuffer
     std::array<int16_t, YIN_REQUIRED_SIZE> yinBuffer;
-    circularBuffer.read(&yinBuffer[0], YIN_REQUIRED_SIZE);
-    
+    circularBuffer.read(&yinBuffer[0], yinBuffer.size());
+
     // Estimate pitch
     double F_0 = estimateF_0(&yinBuffer[0]);
-    
-    // Smooth pitch output
+
+    // Take prior pitch if current pitch is out of bounds
+    static double priorF_0 = 440;
     if (F_0 > 95 && F_0 < 800) {
         priorF_0 = F_0;
     }
@@ -149,17 +152,48 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     {
         F_0 = priorF_0;
     }
-    
+
+    // Determine pitch period from frequency
+    double pitchPeriod = SAMPLE_RATE / F_0;
+
     // Print pitch
-    std::cout << "Pitch: " << frequencyToNote(F_0) << std::endl;
-    
-    // Consume from the circular buffer now that we have run YIN
-    circularBuffer.read(out, frameCount);
-    circularBuffer.consume(frameCount);
+    std::cout << "Pitch: " << frequencyToNote(F_0) << ", i.e. " << F_0 << " Hz" << std::endl;
+
+    // Determine target pitch and pitch ratio
+    double targetF_0 = 220;
+    double pitchRatio = targetF_0 / F_0;
+
+    // Resample the hop according to the pitch ratio
+    static double sourceIndex = 0;
+    for (int targetIndex = 0; targetIndex < HOP_SIZE; targetIndex++)
+    {
+        // Linearly interpolate values lying between samples
+        int x1 = static_cast<int>(sourceIndex);
+        int x2 = x1 + 1;
+        double y1 = yinBuffer[x1];
+        double y2 = yinBuffer[x2];
+        out[targetIndex] = (y2 - y1) * (sourceIndex - x1) + y1;
+
+        // Increment sourceIndex by pitchRatio, backing up one period if we run out of data
+        sourceIndex += pitchRatio;
+        if (sourceIndex >= yinBuffer.size())
+        {
+            sourceIndex -= pitchPeriod;
+        }
+    }
+
+    // Account for the buffer shift before the next hop
+    sourceIndex -= HOP_SIZE;
+
+    // Shift the sourceindex back to the start (mod pitchPeriod) to ensure a continuous waveform
+    sourceIndex = mod(sourceIndex, pitchPeriod);
+
+    // Consume this hop from the circular buffer
+    circularBuffer.consume(HOP_SIZE);
 
     // Continue processing
     return paContinue;
-    
+
 }
 
 // Entry point
