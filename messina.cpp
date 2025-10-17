@@ -15,16 +15,16 @@
 namespace {
     // User-configurable constants
     constexpr int MIN_FREQUENCY = 100;
-    constexpr float WINDOW_SIZE_SCALAR = 2;
+    constexpr double WINDOW_SIZE_FACTOR = 2.0;
     constexpr double ABSOLUTE_THRESHOLD = 0.1;
     constexpr int SAMPLE_RATE = 44100;
     constexpr int HOP_SIZE = 256;
     constexpr double SUGGESTED_INPUT_LATENCY = 0;
-    constexpr double SUGGESTED_OUTPUT_LATENCY = 0.02;
+    constexpr double SUGGESTED_OUTPUT_LATENCY = 0.025;
 
     // Derived constants
     constexpr int MAX_LAG = (SAMPLE_RATE + MIN_FREQUENCY - 1) / MIN_FREQUENCY;
-    constexpr int WINDOW_SIZE = MAX_LAG * WINDOW_SIZE_SCALAR;
+    constexpr int WINDOW_SIZE = MAX_LAG * WINDOW_SIZE_FACTOR;
     constexpr int YIN_REQUIRED_SIZE = WINDOW_SIZE + MAX_LAG;
     constexpr int BUFFER_SIZE = YIN_REQUIRED_SIZE + HOP_SIZE;
 
