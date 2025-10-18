@@ -1,5 +1,4 @@
 #include "portaudio.h"
-#include "CircularBuffer.h"
 
 #include <array>
 #include <climits>
@@ -119,7 +118,7 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     // Cast input, output, and buffer to appropriate types
     const int16_t* in = static_cast<const int16_t*>(input);
     int16_t* out = static_cast<int16_t*>(output);
-    CircularBuffer<int16_t>& circularBuffer = *static_cast<CircularBuffer<int16_t>*>(userData);
+    std::vector<int16_t>& buffer = *static_cast<std::vector<int16_t>*>(userData);
 
     // If no input or output, just continue
     if (!in || !out)
@@ -127,25 +126,22 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
         return paContinue;
     }
 
-    // Write into circular buffer
-    circularBuffer.write(in, HOP_SIZE);
+    // Write into buffer
+    buffer.insert(buffer.end(), in, in + HOP_SIZE);
 
     // Keep collecting data until we have enough to run YIN
-    if (circularBuffer.size() < YIN_REQUIRED_SIZE)
+    if (buffer.size() < YIN_REQUIRED_SIZE)
     {
         return paContinue;
     }
 
-    // Read circular buffer into yinBuffer
-    std::array<int16_t, YIN_REQUIRED_SIZE> yinBuffer;
-    circularBuffer.read(&yinBuffer[0], yinBuffer.size());
-
     // Estimate pitch
-    double F_0 = estimateF_0(&yinBuffer[0]);
+    double F_0 = estimateF_0(buffer.data());
 
     // Take prior pitch if current pitch is out of bounds
     static double priorF_0 = 440;
-    if (F_0 > 95 && F_0 < 800) {
+    if (F_0 > 95 && F_0 < 800)
+    {
         priorF_0 = F_0;
     }
     else
@@ -170,26 +166,26 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
         // Linearly interpolate values lying between samples
         int x1 = static_cast<int>(sourceIndex);
         int x2 = x1 + 1;
-        double y1 = yinBuffer[x1];
-        double y2 = yinBuffer[x2];
+        double y1 = buffer[x1];
+        double y2 = buffer[x2];
         out[targetIndex] = (y2 - y1) * (sourceIndex - x1) + y1;
 
         // Increment sourceIndex by pitchRatio, backing up one period if we run out of data
         sourceIndex += pitchRatio;
-        if (sourceIndex >= yinBuffer.size())
+        if (sourceIndex >= buffer.size())
         {
             sourceIndex -= pitchPeriod;
         }
     }
+
+    // Consume this hop from the buffer
+    buffer.erase(buffer.begin(), buffer.begin() + HOP_SIZE);
 
     // Account for the buffer shift before the next hop
     sourceIndex -= HOP_SIZE;
 
     // Shift the sourceindex back to the start (mod pitchPeriod) to ensure a continuous waveform
     sourceIndex = mod(sourceIndex, pitchPeriod);
-
-    // Consume this hop from the circular buffer
-    circularBuffer.consume(HOP_SIZE);
 
     // Continue processing
     return paContinue;
@@ -219,11 +215,11 @@ int main()
     outputParams.suggestedLatency = SUGGESTED_OUTPUT_LATENCY;
     outputParams.hostApiSpecificStreamInfo = nullptr;
 
-    // Initialize a circular buffer to persist between callbacks
-    CircularBuffer<int16_t> circularBuffer(BUFFER_SIZE);
+    // Initialize a buffer to persist between callbacks
+    std::vector<int16_t> buffer(BUFFER_SIZE);
 
     // Open and start stream
-    Pa_OpenStream(&stream, &inputParams, &outputParams, SAMPLE_RATE, HOP_SIZE, paClipOff, audioCallback, &circularBuffer);
+    Pa_OpenStream(&stream, &inputParams, &outputParams, SAMPLE_RATE, HOP_SIZE, paClipOff, audioCallback, &buffer);
     Pa_StartStream(stream);
 
     // Pause the main thread until user input
