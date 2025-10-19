@@ -40,7 +40,7 @@ inline double mod(double a, double b)
     return a - b * std::floor(a / b);
 }
 
-// Given three points (x values must be separated by 1), calculate x value of vertex of interpolated parabola via magic
+// Given three points with x values separated by 1, calculate the x value of the vertex of the interpolated parabola
 double parabolicInterpolation(double x1, double y1, double x2, double y2, double x3, double y3)
 {
     return x2 + (y1 - y3) / (2.0 * (y1 - 2.0 * y2 + y3));
