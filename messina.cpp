@@ -114,6 +114,11 @@ std::string frequencyToNote(double F_0)
     return note + std::to_string(octave) + " (" + (errorInCents >= 0 ? "+" : "") + std::to_string(errorInCents) + " cents)";
 }
 
+inline double quantizeFrequency(double F_0)
+{
+    return std::exp2(std::round(log2(F_0 / 440) * 12) / 12) * 440;
+}
+
 static int audioCallback(const void* input, void* output, unsigned long frameCount, const PaStreamCallbackTimeInfo* timeInfo, PaStreamCallbackFlags statusFlags, void* userData)
 {
     // Cast input, output, and buffer to appropriate types
@@ -155,14 +160,19 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
 
     // Print pitch
     std::cout << "Pitch: " << frequencyToNote(F_0) << ", i.e. " << F_0 << " Hz" << std::endl;
-    
+
+    // Quantize frequency to nearest semitone
+    double quantizedF_0 = quantizeFrequency(F_0);
+
     // Define target frequencies
-    std::vector<double> targetFrequencies = {110, 138.59, 164.81};
-    double inverseSquareRoot = 1 / std::sqrt(targetFrequencies.size());
-    
+    std::vector<double> targetFrequencies = {quantizedF_0, quantizedF_0 * 1.5, quantizedF_0 * 2};
+
+    // Precompute voice gain
+    double voiceGain = 1 / std::sqrt(targetFrequencies.size());
+
     // Clear the output so we can layer in tones
     memset(out, 0, HOP_SIZE * sizeof(int16_t));
-    
+
     // Resample each target frequency into out
     static std::vector<double> sourceIndices(targetFrequencies.size(), 0);
     for (int i = 0; i < targetFrequencies.size(); i++)
@@ -179,7 +189,7 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
             int x2 = x1 + 1;
             double y1 = buffer[x1];
             double y2 = buffer[x2];
-            out[targetIndex] += ((y2 - y1) * (sourceIndex - x1) + y1) * inverseSquareRoot;
+            out[targetIndex] += ((y2 - y1) * (sourceIndex - x1) + y1) * voiceGain;
 
             // Increment sourceIndex by pitchRatio, backing up one period if we run out of data
             sourceIndex += pitchRatio;
