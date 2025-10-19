@@ -3,6 +3,7 @@
 #include <array>
 #include <climits>
 #include <cstdint>
+#include <cstring>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
@@ -34,7 +35,7 @@ namespace {
 }
 
 // Modulo operation for doubles since fmod is technically a remainder operator
-double mod(double a, double b)
+inline double mod(double a, double b)
 {
     return a - b * std::floor(a / b);
 }
@@ -154,68 +155,53 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
 
     // Print pitch
     std::cout << "Pitch: " << frequencyToNote(F_0) << ", i.e. " << F_0 << " Hz" << std::endl;
-
+    
+    // Define target frequencies
+    std::vector<double> targetFrequencies = {110, 138.59, 164.81};
+    double inverseSquareRoot = 1 / std::sqrt(targetFrequencies.size());
+    
     // Clear the output so we can layer in tones
-    for (int i = 0; i < HOP_SIZE; i++)
+    memset(out, 0, HOP_SIZE * sizeof(int16_t));
+    
+    // Resample each target frequency into out
+    static std::vector<double> sourceIndices(targetFrequencies.size(), 0);
+    for (int i = 0; i < targetFrequencies.size(); i++)
     {
-        out[i] = 0;
-    }
+        // Get target pitch ratio and a reference to the sourceIndex
+        double pitchRatio = targetFrequencies[i] / F_0;
+        double& sourceIndex = sourceIndices[i];
 
-    // Determine target pitch and pitch ratio
-    double targetF_0 = 220;
-    double pitchRatio = targetF_0 / F_0;
-
-    // Resample the hop according to the pitch ratio
-    static double sourceIndex = 0;
-    for (int targetIndex = 0; targetIndex < HOP_SIZE; targetIndex++)
-    {
-        // Linearly interpolate values lying between samples
-        int x1 = static_cast<int>(sourceIndex);
-        int x2 = x1 + 1;
-        double y1 = buffer[x1];
-        double y2 = buffer[x2];
-        out[targetIndex] += ((y2 - y1) * (sourceIndex - x1) + y1) / 2;
-
-        // Increment sourceIndex by pitchRatio, backing up one period if we run out of data
-        sourceIndex += pitchRatio;
-        if (sourceIndex >= buffer.size())
+        // Perform resampling
+        for (int targetIndex = 0; targetIndex < HOP_SIZE; targetIndex++)
         {
-            sourceIndex -= pitchPeriod;
-        }
-    }
+            // Linearly interpolate values lying between samples
+            int x1 = static_cast<int>(sourceIndex);
+            int x2 = x1 + 1;
+            double y1 = buffer[x1];
+            double y2 = buffer[x2];
+            out[targetIndex] += ((y2 - y1) * (sourceIndex - x1) + y1) * inverseSquareRoot;
 
-    double targetF_0_2 = 277.18;
-    double pitchRatio2 = targetF_0_2 / F_0;
-
-    // Resample the hop according to the pitch ratio
-    static double sourceIndex2 = 0;
-    for (int targetIndex = 0; targetIndex < HOP_SIZE; targetIndex++)
-    {
-        // Linearly interpolate values lying between samples
-        int x1 = static_cast<int>(sourceIndex2);
-        int x2 = x1 + 1;
-        double y1 = buffer[x1];
-        double y2 = buffer[x2];
-        out[targetIndex] += ((y2 - y1) * (sourceIndex2 - x1) + y1) / 2;
-
-        // Increment sourceIndex by pitchRatio, backing up one period if we run out of data
-        sourceIndex2 += pitchRatio2;
-        if (sourceIndex2 >= buffer.size())
-        {
-            sourceIndex2 -= pitchPeriod;
+            // Increment sourceIndex by pitchRatio, backing up one period if we run out of data
+            sourceIndex += pitchRatio;
+            if (sourceIndex >= buffer.size())
+            {
+                sourceIndex -= pitchPeriod;
+            }
         }
     }
 
     // Consume this hop from the buffer
     buffer.erase(buffer.begin(), buffer.begin() + HOP_SIZE);
 
-    // Account for the buffer shift before the next hop
-    sourceIndex -= HOP_SIZE;
-    sourceIndex2 -= HOP_SIZE;
+    // Reset source indices carefully
+    for (double& sourceIndex : sourceIndices)
+    {
+        // Account for the buffer shift before the next hop
+        sourceIndex -= HOP_SIZE;
 
-    // Shift the sourceindex back to the start (mod pitchPeriod) to ensure a continuous waveform
-    sourceIndex = mod(sourceIndex, pitchPeriod);
-    sourceIndex2 = mod(sourceIndex2, pitchPeriod);
+        // Shift the sourceindex back to the start (mod pitchPeriod to ensure a continuous waveform)
+        sourceIndex = mod(sourceIndex, pitchPeriod);   
+    }
 
     // Continue processing
     return paContinue;
