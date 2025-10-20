@@ -41,7 +41,7 @@ inline double mod(double a, double b)
 }
 
 // Given three points with x values separated by 1, calculate the x value of the vertex of the interpolated parabola
-double parabolicInterpolation(double x1, double y1, double x2, double y2, double x3, double y3)
+inline double parabolicInterpolation(double x1, double y1, double x2, double y2, double x3, double y3)
 {
     return x2 + (y1 - y3) / (2.0 * (y1 - 2.0 * y2 + y3));
 }
@@ -114,11 +114,13 @@ std::string frequencyToNote(double F_0)
     return note + std::to_string(octave) + " (" + (errorInCents >= 0 ? "+" : "") + std::to_string(errorInCents) + " cents)";
 }
 
+// Round the given frequency to nearest note of the 12 tone equal tempered system
 inline double quantizeFrequency(double F_0)
 {
     return std::exp2(std::round(log2(F_0 / 440) * 12) / 12) * 440;
 }
 
+// Callback function which takes input from the mic and returns output to the speakers
 static int audioCallback(const void* input, void* output, unsigned long frameCount, const PaStreamCallbackTimeInfo* timeInfo, PaStreamCallbackFlags statusFlags, void* userData)
 {
     // Cast input, output, and buffer to appropriate types
