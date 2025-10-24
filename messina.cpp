@@ -29,10 +29,14 @@ namespace {
     constexpr int WINDOW_SIZE = MAX_LAG * WINDOW_SIZE_FACTOR;
     constexpr int YIN_REQUIRED_SIZE = WINDOW_SIZE + MAX_LAG;
     constexpr int BUFFER_SIZE = YIN_REQUIRED_SIZE + HOP_SIZE;
-    constexpr int YIN_STRIDE = 10;
+    constexpr int YIN_STRIDE = 2;
 
     // Global constants
-    constexpr std::array<const char*, 12> NOTES = {" A", "A#", " B", " C", "C#", " D", "D#", " E", " F", "F#", " G", "G#"};
+    constexpr std::array<char*, 12> NOTES = {" A", "A#", " B", " C", "C#", " D", "D#", " E", " F", "F#", " G", "G#"};
+
+    // Scales
+    constexpr std::array<int, 7> MAJOR = {0, 2, 4, 5, 7, 9, 11};
+    constexpr std::array<int, 7> MINOR = {0, 2, 3, 5, 7, 8, 10};
 
 }
 
@@ -108,18 +112,38 @@ double estimateF_0(const int16_t* samples)
 // Given a fundamental frequency F_0 in Hz, return the note name
 std::string frequencyToNote(double F_0)
 {
-    int differenceInCents = std::round(std::log2(F_0 / 440.0) * 1200);
-    int differenceInSemitones = (differenceInCents + 50) / 100;
-    std::string note = NOTES[((differenceInSemitones % 12) + 12) % 12];
-    int octave = ((differenceInSemitones + 9) / 12) + 4;
-    int errorInCents = ((((differenceInCents + 50) % 100) + 100) % 100) - 50;
+    int centsFromA440 = std::round(std::log2(F_0 / 440.0) * 1200);
+    int semitonesFromA440 = (centsFromA440 + 50) / 100;
+    std::string note = NOTES[((semitonesFromA440 % 12) + 12) % 12];
+    int octave = ((semitonesFromA440 + 9) / 12) + 4;
+    int errorInCents = ((((centsFromA440 + 50) % 100) + 100) % 100) - 50;
     return note + std::to_string(octave) + " (" + (errorInCents >= 0 ? "+" : "") + std::to_string(errorInCents) + " cents)";
 }
 
-// Round the given frequency to nearest note of the 12 tone equal tempered system
-inline double quantizeFrequency(double F_0)
+// Quantize the given frequency to nearest note of the 12 tone equal tempered system
+inline double quantizeChromatic(double F_0)
 {
     return std::exp2(std::round(std::log2(F_0 / 440) * 12) / 12) * 440;
+}
+
+// Quantize the given frequency to nearest note in a given key (tonic and scale)
+double quantizeToScale(double F_0, int tonic, const std::array<int, 7>& scale)
+{
+    double semitonesFromA440 = std::log2(F_0 / 440) * 12;
+    double semitonesFromTonicMod12 = mod(semitonesFromA440 - tonic, 12);
+    double smallestDiff = scale[0] - semitonesFromTonicMod12;
+    double minAbsDiff = std::abs(smallestDiff);
+    for (int note : scale)
+    {
+        double diff = note - semitonesFromTonicMod12;
+        double absDiff = std::abs(diff);
+        if (absDiff < minAbsDiff)
+        {
+            smallestDiff = diff;
+            minAbsDiff = absDiff;
+        }
+    }
+    return std::exp2((semitonesFromA440 + smallestDiff) / 12) * 440;
 }
 
 // Callback function which takes input from the mic and returns output to the speakers
@@ -172,10 +196,10 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     std::cout << "Pitch: " << frequencyToNote(F_0) << ", i.e. " << F_0 << " Hz" << std::endl;
 
     // Quantize frequency to nearest semitone
-    double quantizedF_0 = quantizeFrequency(F_0);
+    double quantizedF_0 = quantizeToScale(F_0, 5, MAJOR);
 
     // Define target frequencies
-    std::vector<double> targetFrequencies = {quantizedF_0, quantizedF_0 * 1.5, quantizedF_0 * 2};
+    std::vector<double> targetFrequencies = {quantizedF_0};
 
     // Precompute voice gain
     double voiceGain = 1 / std::sqrt(targetFrequencies.size());
