@@ -16,6 +16,7 @@ namespace {
 
     // User-configurable constants
     constexpr int MIN_FREQUENCY = 100;
+    constexpr int MAX_FREQUENCY = 800;
     constexpr double WINDOW_SIZE_FACTOR = 2.0;
     constexpr double ABSOLUTE_THRESHOLD = 0.1;
     constexpr int SAMPLE_RATE = 44100;
@@ -28,6 +29,7 @@ namespace {
     constexpr int WINDOW_SIZE = MAX_LAG * WINDOW_SIZE_FACTOR;
     constexpr int YIN_REQUIRED_SIZE = WINDOW_SIZE + MAX_LAG;
     constexpr int BUFFER_SIZE = YIN_REQUIRED_SIZE + HOP_SIZE;
+    constexpr int YIN_STRIDE = 10;
 
     // Global constants
     constexpr std::array<const char*, 12> NOTES = {" A", "A#", " B", " C", "C#", " D", "D#", " E", " F", "F#", " G", "G#"};
@@ -117,7 +119,7 @@ std::string frequencyToNote(double F_0)
 // Round the given frequency to nearest note of the 12 tone equal tempered system
 inline double quantizeFrequency(double F_0)
 {
-    return std::exp2(std::round(log2(F_0 / 440) * 12) / 12) * 440;
+    return std::exp2(std::round(std::log2(F_0 / 440) * 12) / 12) * 440;
 }
 
 // Callback function which takes input from the mic and returns output to the speakers
@@ -143,12 +145,18 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
         return paContinue;
     }
 
-    // Estimate pitch
-    double F_0 = estimateF_0(buffer.data());
+    // Estimate pitch once every YIN_STRIDE frames
+    double F_0 = 0;
+    static int yinCounter = 0;
+    if (++yinCounter == YIN_STRIDE)
+    {
+        F_0 = estimateF_0(buffer.data());
+        yinCounter = 0;
+    }
 
     // Take prior pitch if current pitch is out of bounds
     static double priorF_0 = 440;
-    if (F_0 > 95 && F_0 < 800)
+    if (F_0 > MIN_FREQUENCY && F_0 < MAX_FREQUENCY)
     {
         priorF_0 = F_0;
     }
