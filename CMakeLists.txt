@@ -31,6 +31,10 @@ endif()
 # Include PortAudio
 add_subdirectory(external/portaudio)
 
+# Force static build of RtMidi and include it
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build RtMidi as static library" FORCE)
+add_subdirectory(external/rtmidi)
+
 # ==============================================================================
 # Target Definition
 # ==============================================================================
@@ -50,6 +54,7 @@ set_target_properties(messina PROPERTIES
 target_link_libraries(messina 
     PRIVATE 
         portaudio
+        rtmidi
 )
 
 # ==============================================================================

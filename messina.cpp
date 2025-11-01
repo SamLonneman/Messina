@@ -1,4 +1,5 @@
 #include "portaudio.h"
+#include "RtMidi.h"
 
 #include <array>
 #include <climits>
@@ -264,6 +265,9 @@ int main()
     // Initialize PortAudio
     Pa_Initialize();
     PaStream* stream;
+
+    // Initialize RtMidi
+    RtMidiIn midiIn;
 
     // Set up input parameters
     PaStreamParameters inputParams;
