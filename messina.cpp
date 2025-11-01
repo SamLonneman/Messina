@@ -1,6 +1,7 @@
 #include "portaudio.h"
 #include "RtMidi.h"
 
+#include <algorithm>
 #include <array>
 #include <climits>
 #include <cstdint>
@@ -38,6 +39,9 @@ namespace {
     // Scales
     constexpr std::array<int, 7> MAJOR = {0, 2, 4, 5, 7, 9, 11};
     constexpr std::array<int, 7> MINOR = {0, 2, 3, 5, 7, 8, 10};
+
+    // Global variables
+    RtMidiIn midiIn;
 
 }
 
@@ -147,6 +151,14 @@ double quantizeToScale(double F_0, int tonic, const std::array<int, 7>& scale)
     return std::exp2((semitonesFromA440 + smallestDiff) / 12) * 440;
 }
 
+// Structure used to represent a tone ready for resampling
+struct tone_t
+{
+    double frequency;
+    int volume;
+    double sourceIndex;
+};
+
 // Callback function which takes input from the mic and returns output to the speakers
 static int audioCallback(const void* input, void* output, unsigned long frameCount, const PaStreamCallbackTimeInfo* timeInfo, PaStreamCallbackFlags statusFlags, void* userData)
 {
@@ -193,50 +205,69 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     // Determine pitch period from frequency
     double pitchPeriod = SAMPLE_RATE / F_0;
 
-    // Print pitch
-    std::cout << "Pitch: " << frequencyToNote(F_0) << ", i.e. " << F_0 << " Hz" << std::endl;
-
     // Quantize frequency to nearest semitone
     double quantizedF_0 = quantizeToScale(F_0, 5, MAJOR);
 
-    // Define target frequencies
-    std::vector<double> targetFrequencies = {quantizedF_0, quantizedF_0 * 2, quantizedF_0 * 0.5, quantizedF_0 * 0.25, quantizedF_0 * 0.125};
+    // Create tones list from midi controller message queue
+    static std::vector<tone_t> tones;
+    std::vector<unsigned char> message;
+    midiIn.getMessage(&message);
+    while (!message.empty())
+    {
+        // Calculate frequency and volume of incoming midi message
+        double frequency = std::exp2((message[1] - 69) / 12.0) * 440;
+        int volume = message[2];
+
+        // If the volume is non-zero, we have the start of a note, so add it to the tones list
+        if (volume)
+        {
+            tones.push_back({frequency, volume, 0});
+        }
+
+        // Otherwise, we have the end of a note, so remove it from the tones list
+        else
+        {
+            for (int i = 0; i < tones.size(); i++)
+            {
+                if (tones[i].frequency == frequency)
+                {
+                    tones.erase(tones.begin() + i);
+                    break;
+                }
+            }
+        }
+
+        // Poll the queue for the next message
+        midiIn.getMessage(&message);
+    }
 
     // Precompute voice gain
-    double voiceGain = 1 / std::sqrt(targetFrequencies.size());
+    double voiceGain = 1 / std::sqrt(tones.size());
 
     // Clear the output so we can layer in tones
     memset(out, 0, HOP_SIZE * sizeof(int16_t));
 
     // Resample each target frequency into out
-    static std::vector<double> sourceIndices;
-    for (int i = 0; i < targetFrequencies.size(); i++)
+    for (tone_t& tone : tones)
     {
         // Get target pitch ratio
-        double pitchRatio = targetFrequencies[i] / F_0;
-
-        // Get a reference to the appropriate source index, making a new one if necessary
-        if (i >= sourceIndices.size())
-        {
-            sourceIndices.resize(i + 1);
-        }
-        double& sourceIndex = sourceIndices[i];
+        double pitchRatio = tone.frequency / F_0;
 
         // Perform resampling
         for (int targetIndex = 0; targetIndex < HOP_SIZE; targetIndex++)
         {
             // Linearly interpolate values lying between samples
-            int x1 = static_cast<int>(sourceIndex);
+            int x1 = static_cast<int>(tone.sourceIndex);
             int x2 = x1 + 1;
             double y1 = buffer[x1];
             double y2 = buffer[x2];
-            out[targetIndex] += ((y2 - y1) * (sourceIndex - x1) + y1) * voiceGain;
+            out[targetIndex] += ((y2 - y1) * (tone.sourceIndex - x1) + y1) * voiceGain;
 
             // Increment sourceIndex by pitchRatio, backing up one period if we run out of data
-            sourceIndex += pitchRatio;
-            if (sourceIndex >= buffer.size())
+            tone.sourceIndex += pitchRatio;
+            if (tone.sourceIndex >= buffer.size())
             {
-                sourceIndex -= pitchPeriod;
+                tone.sourceIndex -= pitchPeriod;
             }
         }
     }
@@ -245,13 +276,13 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     buffer.erase(buffer.begin(), buffer.begin() + HOP_SIZE);
 
     // Reset source indices carefully
-    for (double& sourceIndex : sourceIndices)
+    for (tone_t& tone : tones)
     {
         // Account for the buffer shift before the next hop
-        sourceIndex -= HOP_SIZE;
+        tone.sourceIndex -= HOP_SIZE;
 
         // Shift the sourceindex back to the start (mod pitchPeriod to ensure a continuous waveform)
-        sourceIndex = mod(sourceIndex, pitchPeriod);   
+        tone.sourceIndex = mod(tone.sourceIndex, pitchPeriod);   
     }
 
     // Continue processing
@@ -262,6 +293,9 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
 // Entry point
 int main()
 {
+    // Initialize RtMidi
+    midiIn.openPort(0);
+
     // Initialize PortAudio
     Pa_Initialize();
     PaStream* stream;
