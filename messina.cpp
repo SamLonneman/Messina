@@ -32,7 +32,7 @@ namespace {
     constexpr int YIN_STRIDE = 2;
 
     // Global constants
-    constexpr std::array<char*, 12> NOTES = {" A", "A#", " B", " C", "C#", " D", "D#", " E", " F", "F#", " G", "G#"};
+    constexpr std::array<const char*, 12> NOTES = {" A", "A#", " B", " C", "C#", " D", "D#", " E", " F", "F#", " G", "G#"};
 
     // Scales
     constexpr std::array<int, 7> MAJOR = {0, 2, 4, 5, 7, 9, 11};
@@ -199,7 +199,7 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     double quantizedF_0 = quantizeToScale(F_0, 5, MAJOR);
 
     // Define target frequencies
-    std::vector<double> targetFrequencies = {quantizedF_0};
+    std::vector<double> targetFrequencies = {quantizedF_0, quantizedF_0 * 2, quantizedF_0 * 0.5, quantizedF_0 * 0.25, quantizedF_0 * 0.125};
 
     // Precompute voice gain
     double voiceGain = 1 / std::sqrt(targetFrequencies.size());
@@ -208,11 +208,17 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     memset(out, 0, HOP_SIZE * sizeof(int16_t));
 
     // Resample each target frequency into out
-    static std::vector<double> sourceIndices(targetFrequencies.size(), 0);
+    static std::vector<double> sourceIndices;
     for (int i = 0; i < targetFrequencies.size(); i++)
     {
-        // Get target pitch ratio and a reference to the sourceIndex
+        // Get target pitch ratio
         double pitchRatio = targetFrequencies[i] / F_0;
+
+        // Get a reference to the appropriate source index, making a new one if necessary
+        if (i >= sourceIndices.size())
+        {
+            sourceIndices.resize(i + 1);
+        }
         double& sourceIndex = sourceIndices[i];
 
         // Perform resampling
