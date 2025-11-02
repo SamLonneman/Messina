@@ -157,6 +157,7 @@ struct Voice
     double frequency;
     int volume;
     double sourceIndex;
+    bool sustained;
 };
 
 // Callback function which takes input from the mic and returns output to the speakers
@@ -214,30 +215,83 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     // Update the frequency of the main voice
     voices[0].frequency = quantizedF_0;
 
-    // Read all messages currently in queue. For each message...
+    // Read all messages currently in MIDI queue
     std::vector<unsigned char> message;
     midiIn.getMessage(&message);
     while (!message.empty())
     {
-        // Calculate frequency and volume of incoming MIDI message
-        double frequency = std::exp2((message[1] - 69) / 12.0) * 440;
-        int volume = message[2];
-
-        // If the volume is non-zero, we have the start of a note, so add it to the voices list
-        if (volume)
+        // If the message is about the sustain pedal (176)
+        static bool sustain = false;
+        if (message[0] == 176)
         {
-            voices.push_back({frequency, volume, 0});
+            // If it is a sustain release
+            if (!(sustain = message[2]))
+            {
+                // Erase all voices flagged as sustained
+                for (int i = voices.size() - 1; i >= 1; i--)
+                {
+                    if (voices[i].sustained)
+                    {
+                        voices.erase(voices.begin() + i);
+                    }
+                }
+            }
         }
 
-        // Otherwise, we have the end of a note, so remove it from the voices list
+        // Otherwise, we have a standard note
         else
         {
-            for (int i = 1; i < voices.size(); i++)
+            // Calculate frequency and volume
+            double frequency = std::exp2((message[1] - 69) / 12.0) * 440;
+            int volume = message[2];
+
+            // If the volume is non-zero, we have the start of a note
+            if (volume)
             {
-                if (voices[i].frequency == frequency)
+                // Iterate through list of voices looking for thise note
+                bool alreadyHere = false;
+                for (int i = 1; i < voices.size(); i++)
                 {
-                    voices.erase(voices.begin() + i);
-                    break;
+                    // If already in voices, update the volume and remove sustained flag
+                    if (voices[i].frequency == frequency)
+                    {
+                        voices[i].volume = volume;
+                        voices[i].sustained = false;
+                        alreadyHere = true;
+                        break;
+                    }
+                }
+
+                // If not found in voices, add it
+                if (!alreadyHere)
+                {
+                    voices.push_back({frequency, volume, 0, false});
+                }
+            }
+            
+            // Otherwise, we have the end of a note
+            else
+            {
+                // Find it in the list
+                for (int i = 1; i < voices.size(); i++)
+                {
+                    if (voices[i].frequency == frequency)
+                    {
+                        // If sustain is on, flag it as sustained, but don't erase
+                        if (sustain)
+                        {
+                            voices[i].sustained = true;
+                        }
+                        
+                        // Otherwise, just erase it
+                        else
+                        {
+                            voices.erase(voices.begin() + i);
+                        }
+
+                        // In either case, we are done searching, so break
+                        break;
+                    }
                 }
             }
         }
