@@ -206,15 +206,20 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     double pitchPeriod = SAMPLE_RATE / F_0;
 
     // Quantize frequency to nearest semitone
-    double quantizedF_0 = quantizeToScale(F_0, 5, MAJOR);
+    double quantizedF_0 = quantizeToScale(F_0, 3, MAJOR);
 
-    // Create tones list from midi controller message queue
-    static std::vector<tone_t> tones;
+    // Create tones list from MIDI controller message queue, with the first being autotuned passthrough
+    static std::vector<tone_t> tones = {{quantizedF_0, 100, 0}};
+
+    // Update the frequency of the main voice
+    tones[0].frequency = quantizedF_0;
+
+    // Read all messages currently in queue. For each...
     std::vector<unsigned char> message;
     midiIn.getMessage(&message);
     while (!message.empty())
     {
-        // Calculate frequency and volume of incoming midi message
+        // Calculate frequency and volume of incoming MIDI message
         double frequency = std::exp2((message[1] - 69) / 12.0) * 440;
         int volume = message[2];
 
@@ -227,7 +232,7 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
         // Otherwise, we have the end of a note, so remove it from the tones list
         else
         {
-            for (int i = 0; i < tones.size(); i++)
+            for (int i = 1; i < tones.size(); i++)
             {
                 if (tones[i].frequency == frequency)
                 {
@@ -237,7 +242,7 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
             }
         }
 
-        // Poll the queue for the next message
+        // Poll the queue for the next MIDI message
         midiIn.getMessage(&message);
     }
 
