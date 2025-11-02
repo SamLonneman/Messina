@@ -219,7 +219,7 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     std::vector<unsigned char> message;
     while (midiIn.getMessage(&message), !message.empty())
     {
-        // If the message is about the sustain pedal (176)
+        // If the message is about the sustain pedal
         static bool sustain = false;
         if (message[0] == 176)
         {
@@ -272,19 +272,15 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
         {
             if (voices[i].frequency == frequency)
             {
-                // If sustain is on, flag it as sustained, but don't erase
+                // If sustain is on, flag it as sustained, otherwise erase it
                 if (sustain)
                 {
                     voices[i].sustained = true;
                 }
-                
-                // Otherwise, just erase it
                 else
                 {
                     voices.erase(voices.begin() + i);
                 }
-
-                // In either case, we are done searching, so break
                 break;
             }
         }
