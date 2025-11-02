@@ -37,8 +37,8 @@ namespace {
     constexpr std::array<const char*, 12> NOTES = {" A", "A#", " B", " C", "C#", " D", "D#", " E", " F", "F#", " G", "G#"};
 
     // Scales
-    constexpr std::array<int, 7> MAJOR = {0, 2, 4, 5, 7, 9, 11};
-    constexpr std::array<int, 7> MINOR = {0, 2, 3, 5, 7, 8, 10};
+    constexpr std::array<int, 8> MAJOR = {0, 2, 4, 5, 7, 9, 11, 12};
+    constexpr std::array<int, 8> MINOR = {0, 2, 3, 5, 7, 8, 10, 12};
 
     // Global variables
     RtMidiIn midiIn;
@@ -132,7 +132,7 @@ inline double quantizeChromatic(double F_0)
 }
 
 // Quantize the given frequency to nearest note in a given key (tonic and scale)
-double quantizeToScale(double F_0, int tonic, const std::array<int, 7>& scale)
+double quantizeToScale(double F_0, int tonic, const std::array<int, 8>& scale)
 {
     double semitonesFromA440 = std::log2(F_0 / 440) * 12;
     double semitonesFromTonicMod12 = mod(semitonesFromA440 - tonic, 12);
