@@ -207,7 +207,7 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     double pitchPeriod = SAMPLE_RATE / F_0;
 
     // Quantize frequency to nearest semitone
-    double quantizedF_0 = quantizeToScale(F_0, 3, MAJOR);
+    double quantizedF_0 = quantizeToScale(F_0, 4, MAJOR);
 
     // Persistent list of active voices; first is the main autotuned passthrough.
     static std::vector<Voice> voices = {{quantizedF_0, 100, 0}};
@@ -286,9 +286,9 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
         }
     }
 
-    // Precompute voice gain
-    double voiceGain = 1 / std::sqrt(voices.size());
-
+    // Precompute uniform gain (lower all levels based on the number of voices)
+    double uniformGain = 1 / std::sqrt(voices.size());
+    
     // Clear the output so we can layer in voices
     memset(out, 0, HOP_SIZE * sizeof(int16_t));
 
@@ -298,6 +298,9 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
         // Get target pitch ratio
         double pitchRatio = voice.frequency / F_0;
 
+        // Calculate per voice gain, weighting more volume towards lower frequencies
+        double gain = uniformGain * std::pow(voice.frequency / 440, -0.5);
+
         // Perform resampling
         for (int targetIndex = 0; targetIndex < HOP_SIZE; targetIndex++)
         {
@@ -306,7 +309,7 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
             int x2 = x1 + 1;
             double y1 = buffer[x1];
             double y2 = buffer[x2];
-            out[targetIndex] += ((y2 - y1) * (voice.sourceIndex - x1) + y1) * voiceGain;
+            out[targetIndex] += ((y2 - y1) * (voice.sourceIndex - x1) + y1) * gain;
 
             // Increment sourceIndex by pitchRatio, backing up one period if we run out of data
             voice.sourceIndex += pitchRatio;
