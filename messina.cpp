@@ -210,7 +210,7 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
     double quantizedF_0 = quantizeToScale(F_0, 4, MAJOR);
 
     // Persistent list of active voices; first is the main autotuned passthrough.
-    static std::vector<Voice> voices = {{quantizedF_0, 100, 0}};
+    static std::vector<Voice> voices = {{quantizedF_0, 50, 0}};
 
     // Update the frequency of the main voice
     voices[0].frequency = quantizedF_0;
@@ -298,8 +298,14 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
         // Get target pitch ratio
         double pitchRatio = voice.frequency / F_0;
 
-        // Calculate per voice gain, weighting more volume towards lower frequencies
-        double gain = uniformGain * std::pow(voice.frequency / 440, -0.5);
+        // Dynamic contrast: give more weight to notes with more volume
+        double dynamicGain = std::pow(voice.volume / 80.0 + 0.3, 5);
+
+        // EQ Adjustment: give more weight to notes with lower frequencies
+        double equalizerGain = std::pow(voice.frequency / 440, -0.5);
+
+        // Final gain: all aspects of gain combined
+        double gain = uniformGain * dynamicGain * equalizerGain;
 
         // Perform resampling
         for (int targetIndex = 0; targetIndex < HOP_SIZE; targetIndex++)
