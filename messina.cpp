@@ -25,6 +25,7 @@ namespace {
     constexpr int HOP_SIZE = 256;
     constexpr double SUGGESTED_INPUT_LATENCY = 0;
     constexpr double SUGGESTED_OUTPUT_LATENCY = 0.025;
+    constexpr bool DO_LOW_PASS_FILTER = false;
 
     // Derived constants
     constexpr int MAX_LAG = (SAMPLE_RATE + MIN_FREQUENCY - 1) / MIN_FREQUENCY;
@@ -323,6 +324,16 @@ static int audioCallback(const void* input, void* output, unsigned long frameCou
             {
                 voice.sourceIndex -= pitchPeriod;
             }
+        }
+    }
+
+    // Optionally apply a low pass filter
+    if (DO_LOW_PASS_FILTER)
+    {
+        for (int i = 0; i < HOP_SIZE; i++)
+        {
+            static float prev = 0;
+            out[i] = prev = prev + 0.15f * (out[i] - prev);
         }
     }
 
