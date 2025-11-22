@@ -48,3 +48,7 @@
 
 # VS Code files
 /.vscode/
+
+# Visual Studio files
+/.vs/
+/out/

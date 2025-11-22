@@ -41,7 +41,7 @@ add_subdirectory(external/rtmidi)
 
 # Create the main executable
 add_executable(messina 
-    messina.cpp
+    "src/messina.cpp"
 )
 
 # Set target properties
