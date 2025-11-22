@@ -1,16 +1,13 @@
 # Messina
 
-## Installation and setup
+## Installation
+
+When cloning, use --recursive to get external libraries as submodules.
 ```bash
-git clone https://github.com/SamLonneman/Messina.git
-cd Messina
-git clone https://github.com/PortAudio/portaudio.git external/portaudio
-git clone https://github.com/thestk/rtmidi.git external/rtmidi
-cmake -B build
+git clone --recursive https://github.com/SamLonneman/Messina.git
 ```
 
-## Build and run (development)
+If you forget to clone with --recursive, you can initialize submodules later with:
 ```bash
-cmake --build build
-./build/messina
+git submodule update --init --recursive
 ```

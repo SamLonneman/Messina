@@ -40,12 +40,6 @@
 # debug information files
 *.dwo
 
-# External libraries
-/external/
-
-# Build folder
-/build/
-
 # VS Code files
 /.vscode/
 
