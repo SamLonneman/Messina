@@ -1,25 +1,12 @@
-# ==============================================================================
-# Messina Audio Processing Project
-# ==============================================================================
-
-# Minimum CMake version and project definition
 cmake_minimum_required(VERSION 3.16)
+
 project(Messina 
     VERSION 1.0.0
     DESCRIPTION "Audio processing application"
     LANGUAGES CXX
 )
 
-# ==============================================================================
-# Project Configuration
-# ==============================================================================
-
-# Set C++ standard
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-# Set build type if not specified
+# Default to Release build
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -28,40 +15,45 @@ endif()
 # Dependencies
 # ==============================================================================
 
-# Include PortAudio
+if(NOT EXISTS "${CMAKE_SOURCE_DIR}/external/portaudio/CMakeLists.txt")
+    message(FATAL_ERROR "PortAudio submodule missing. Run: git submodule update --init --recursive")
+endif()
+
+if(NOT EXISTS "${CMAKE_SOURCE_DIR}/external/rtmidi/CMakeLists.txt")
+    message(FATAL_ERROR "RtMidi submodule missing. Run: git submodule update --init --recursive")
+endif()
+
 add_subdirectory(external/portaudio)
 
-# Force static build of RtMidi and include it
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build RtMidi as static library" FORCE)
 add_subdirectory(external/rtmidi)
 
 # ==============================================================================
-# Target Definition
+# Target
 # ==============================================================================
 
-# Create the main executable
 add_executable(messina 
-    "src/messina.cpp"
+    src/messina.cpp
 )
 
-# Set target properties
 set_target_properties(messina PROPERTIES
-    OUTPUT_NAME "messina"
     CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
 )
 
-# Link libraries
+if (MSVC)
+    target_compile_options(messina PRIVATE /W4)
+else()
+    target_compile_options(messina PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
 target_link_libraries(messina 
     PRIVATE 
         portaudio
         rtmidi
 )
 
-# ==============================================================================
-# Installation (Optional)
-# ==============================================================================
-
-# Install the executable
 install(TARGETS messina
     RUNTIME DESTINATION bin
 )
