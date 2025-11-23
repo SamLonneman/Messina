@@ -365,9 +365,6 @@ int main()
     Pa_Initialize();
     PaStream* stream;
 
-    // Initialize RtMidi
-    RtMidiIn midiIn;
-
     // Set up input parameters
     PaStreamParameters inputParams;
     inputParams.device = Pa_GetDefaultInputDevice();
